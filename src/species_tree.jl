@@ -1,7 +1,7 @@
 using AbstractTrees
 
 struct SpeciesTree
-    x::Union{Species,Nothing}
+    x::Union{SpeciesNode,Nothing}
     children::Vector{SpeciesTree}
 end
 export SpeciesTree
@@ -9,7 +9,7 @@ export SpeciesTree
 AbstractTrees.children(t::SpeciesTree) = t.children
 AbstractTrees.nodevalue(t::SpeciesTree) = t.x
 
-function SpeciesTree(sp::Species)
+function SpeciesTree(sp::SpeciesNode)
     parents = []
     t = SpeciesTree(sp, [])
     tmp = sp
@@ -25,14 +25,38 @@ function SpeciesTree(sp::Species)
     end
     return SpeciesTree(nothing, [t])
 end
-SpeciesTree(str::String) = SpeciesTree(Species(str))
-
+SpeciesTree(str::String) = SpeciesTree(SpeciesNode(str))
+SpeciesTree(str::Vector{String}) = merge!(SpeciesTree.(str)...)
 
 insert_child!(t::SpeciesTree, child::SpeciesTree) = push!(children(t), child)
 export insert_child!
 
-#TODO:finish implementation, make tests pass
-function combine(t1::SpeciesTree, t2::SpeciesTree)
-    return SpeciesTree(nodevalue(t1), [children(t1);children(t2)])
+function Base.merge!(left::SpeciesTree, right::SpeciesTree)
+    for nv in children(right)
+        if nodevalue(nv) ∈ nodevalue.(children(left))
+            merge!(children(left)[findfirst(==(nodevalue(nv)), nodevalue.(children(left)))], nv)
+        else
+            push!(children(left), nv)
+        end
+    end
+    return left
 end
 
+function Base.merge!(left::SpeciesTree, others::SpeciesTree...)
+    reduce(merge!, [left; others...])
+end
+
+
+
+function Base.getindex(t::SpeciesTree, s::String)
+    node = SpeciesNode(s)
+    for c in children(t)
+        if nodevalue(c) == node
+            return c
+        end
+        out = Base.getindex(c, s)
+        if !isnothing(out)
+            return out
+        end
+    end
+end
