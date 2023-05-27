@@ -2,24 +2,24 @@ module PlasmaSpecies
 
 import AbstractTrees
 
-# include("species.jl")
-export Positive, Negative, Neutral, Charge
-# export MolecularElectronicState
-# export energy, charge
-# export Nitrogen, DiNitrogen
 
-include("species_node.jl")
+include("species.jl")
+export is_parent_species, get_parent_species
+export Positive, Negative, Neutral, Charge, Species
+export ispositive, isnegative, isneutral
+export gas, charge, electronic_state, vibrational_state, rotational_state
+
 include("species_tree.jl")
+export SpeciesTree, leaves
 
+include("reactions.jl")
+export PlasmaReaction
+export parse_reaction, @p_str 
+export apply_tree
+
+
+# CatalystExt definitions
 to_catalyst(_...) = error("This function needs Catalyst.jl")
-make_reaction(_...) = error("This function needs Catalyst.jl")
-parse_recipe(_...) = error("This function needs Catalyst.jl")
-
-macro p_str(s)
-    parse_recipe(s)
-end
-export @p_str, parse_recipe
-
-export to_catalyst, make_reaction
+export to_catalyst
 
 end 

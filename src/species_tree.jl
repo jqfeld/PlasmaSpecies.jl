@@ -4,8 +4,8 @@ struct SpeciesTree
     x::Union{Species,Nothing}
     children::Vector{SpeciesTree}
 end
-export SpeciesTree
 
+Base.show(io::IO, t::SpeciesTree) = AbstractTrees.print_tree(io,t)
 AbstractTrees.children(t::SpeciesTree) = t.children
 AbstractTrees.nodevalue(t::SpeciesTree) = t.x
 
@@ -60,4 +60,4 @@ end
 
 Base.getindex(t::SpeciesTree, s::String) = t[Species(s)]
 
-Base.show(io::IO, t::SpeciesTree) = AbstractTrees.print_tree(io,t)
+leaves(t::SpeciesTree) = Leaves(t) |> collect .|> nodevalue
