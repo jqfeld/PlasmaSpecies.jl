@@ -201,5 +201,3 @@ function Base.isless(a::Species, b::Species)
         return isless(parse(Int,rotational_state(a)), parse(Int,rotational_state(b)))
     end
 end
-
-

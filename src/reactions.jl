@@ -89,8 +89,8 @@ function parse_reaction(str)
     dir = match(r"(-->|<-->|<--)", str)[1]
     reverse_reaction = dir == "<-->"
     lhs, rhs = dir == "<--" ? split(str, "<--")[end:-1:1] : split(str, "-->")
-    substrates_str = split(lhs, r"(?<=[^(])\+")
-    products_str = split(rhs, r"(?<=[^(])\+")
+    substrates_str = split(lhs, r"(?<!\(|,)\+(?!,|\)|\s\)|\s,)")
+    products_str = split(rhs, r"(?<!\(|,)\+(?!,|\)|\s\)|\s,)")
     substoich = get_stoich.(substrates_str)
     prodstoich = get_stoich.(products_str)
     subs = Species.(remove_stoich.(substrates_str))

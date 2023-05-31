@@ -2,6 +2,7 @@ using PlasmaSpecies
 using Test
 
 @test get_parent_species(Species("N2(X,v=0)")) == Species("N2(X)")
+@test get_parent_species(Species("N2(A3Su+,v=0-4)")) == Species("N2(A3Su+)")
 @test get_parent_species(Species("N2(+,X)")) == Species("N2(+)")
 @test get_parent_species(Species("N2(+)")) !== Species("N2")
 @test get_parent_species(Species("N2(X,v=2,J=10)")) == Species("N2(X,v=2)")
