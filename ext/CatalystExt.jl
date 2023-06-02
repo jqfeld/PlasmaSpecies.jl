@@ -15,7 +15,7 @@ function PlasmaSpecies.to_catalyst(::Nothing)
 end
 
 function PlasmaSpecies.to_catalyst(t::SpeciesTree)
-    leaves(t) .|> PlasmaSpecies.to_catalyst
+    leaves(t) .|> PlasmaSpecies.to_catalyst |> sum
 end
 
 function PlasmaSpecies.to_catalyst(t::SpeciesTree, rate_reaction::Tuple{Any,PlasmaReaction})
