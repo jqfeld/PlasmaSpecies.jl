@@ -19,7 +19,7 @@ export apply_tree
 
 
 # CatalystExt definitions
-to_catalyst(_...) = error("This function needs Catalyst.jl")
+to_catalyst(_...) = error("to_catalyst() not implemented. Is Catalyst.jl loaded?")
 export to_catalyst
 
 end 

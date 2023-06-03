@@ -1,4 +1,4 @@
-module CatalystExt
+module PlasmaSpeciesCatalystExt
 
 using AbstractTrees
 using PlasmaSpecies

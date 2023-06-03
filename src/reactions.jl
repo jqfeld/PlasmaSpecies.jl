@@ -8,8 +8,7 @@ struct PlasmaReaction
 end
 
 
-function get_stoich(v::AbstractString)
-    m = match(r"^(\d+)", v)
+function get_stoich(v::AbstractString) m = match(r"^(\d+)", v)
     return isnothing(m) ? 1 : parse(Int, m[1])
 end
 remove_stoich(s::AbstractString) = replace(s, r"^\d+" => s"")
@@ -111,11 +110,25 @@ macro p_str(s)
     parse_reaction(s)
 end
 
+"""
+    ```julia 
+    apply_tree(t::SpeciesTree, reactions::PlasmaReaction)
+    ```
+
+Apply the species tree to a reaction and return an array with tuples containing 
+the caling factor and the new reaction. 
+This means for each participating species it is checked, if it is a leaf of the tree. 
+If not, a new reaction is created for each descendent species. 
+If the non-leaf species is a product, the branching factor is one over the number of 
+descenents (effectively assuming that the total reaction rate is distributed equally
+over all possible products).
+
+"""
 function apply_tree(t::SpeciesTree, reaction::PlasmaReaction)
     substrate_vectors = Iterators.product([leaves(t[s]) for s in reaction.subs]...) .|> collect
     products_vectors = Iterators.product([leaves(t[s]) for s in reaction.prods]...) .|> collect
-    branching_factor = length(products_vectors)
-    [(1/ branching_factor, PlasmaReaction(subs, prods, reaction.substoich, reaction.prodstoich, reaction.reverse)) for subs in substrate_vectors for prods in products_vectors]
+    branching_factor = 1/length(products_vectors)
+    [(branching_factor, PlasmaReaction(subs, prods, reaction.substoich, reaction.prodstoich, reaction.reverse)) for subs in substrate_vectors for prods in products_vectors]
 end
 
 function apply_tree(t::SpeciesTree, reactions::PlasmaReaction...)
