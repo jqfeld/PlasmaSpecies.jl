@@ -2,11 +2,18 @@ module PlasmaSpecies
 
 import AbstractTrees
 
-
-include("species.jl")
+include("charge.jl")
 export is_parent_species, get_parent_species
 export Positive, Negative, Neutral, Charge, Species
 export ispositive, isnegative, isneutral
+
+include("gas.jl")
+export Gas, StringGas, DiNitrogen, Nitrogen
+
+include("electronic_state.jl")
+export ElectronicState, StringElectronicState
+
+include("species.jl")
 export gas, charge, electronic_state, vibrational_state, rotational_state
 
 include("species_tree.jl")
