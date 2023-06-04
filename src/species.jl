@@ -83,7 +83,7 @@ end
 function Base.show(io::IO, sp::Species)
     out = string(gas(sp))
     open_bracket = false
-    if !(charge(sp) isa Neutral) && gas(sp) != "e"
+    if !(charge(sp) isa Neutral) && string(gas(sp)) != "e"
         open_bracket = true
         out *= "($(charge(sp))"
     end
