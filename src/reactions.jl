@@ -8,7 +8,8 @@ struct PlasmaReaction
 end
 
 
-function get_stoich(v::AbstractString) m = match(r"^(\d+)", v)
+function get_stoich(v::AbstractString)
+    m = match(r"^(\d+)", v)
     return isnothing(m) ? 1 : parse(Int, m[1])
 end
 remove_stoich(s::AbstractString) = replace(s, r"^\d+" => s"")
@@ -57,7 +58,7 @@ function Base.show(io::IO, recipe::PlasmaReaction)
     else
         print(io, "-->")
     end
-    
+
     if length(recipe.prods) > 1
         reduce(function (x, y)
                 if x[2] > 1
@@ -80,7 +81,7 @@ end
 
 function sort_by_species(sp, stoich)
     p = sortperm(sp, rev=true)
-    return sp[p],stoich[p]
+    return sp[p], stoich[p]
 end
 
 function parse_reaction(str)
@@ -107,7 +108,12 @@ end
 PlasmaReaction(str) = parse_reaction(str)
 
 macro p_str(s)
-    parse_reaction(s)
+    if contains(s, r"(-->|<-->|<--)")
+        return parse_reaction(s)
+    else
+        return Species(s)
+    end
+
 end
 
 """
@@ -116,18 +122,18 @@ end
     ```
 
 Apply the species tree to a reaction and return an array with tuples containing 
-the caling factor and the new reaction. 
+the scaling factor and the new reaction. 
 This means for each participating species it is checked, if it is a leaf of the tree. 
 If not, a new reaction is created for each descendent species. 
 If the non-leaf species is a product, the branching factor is one over the number of 
-descenents (effectively assuming that the total reaction rate is distributed equally
+descendants (effectively assuming that the total reaction rate is distributed equally
 over all possible products).
 
 """
 function apply_tree(t::SpeciesTree, reaction::PlasmaReaction)
     substrate_vectors = Iterators.product([leaves(t[s]) for s in reaction.subs]...) .|> collect
     products_vectors = Iterators.product([leaves(t[s]) for s in reaction.prods]...) .|> collect
-    branching_factor = 1/length(products_vectors)
+    branching_factor = 1 / length(products_vectors)
     [(branching_factor, PlasmaReaction(subs, prods, reaction.substoich, reaction.prodstoich, reaction.reverse)) for subs in substrate_vectors for prods in products_vectors]
 end
 
@@ -145,3 +151,5 @@ end
 apply_tree(t::SpeciesTree, reactions::Vector{PlasmaReaction}) = PlasmaSpecies.apply_tree(t, reactions...)
 
 
+ismassbalanced(r::PlasmaReaction) = sum(mass.(r.prods) .* r.prodstoich) ≈ sum(mass.(r.subs) .* r.substoich)
+ischargebalanced(r::PlasmaReaction) = sum(to_value.(charge.(r.prods)) .* r.prodstoich) == sum(to_value.(charge.(r.subs)) .* r.substoich)

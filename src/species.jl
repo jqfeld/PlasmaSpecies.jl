@@ -36,6 +36,7 @@ charge(sp::Species) = sp.charge
 electronic_state(sp::Species) = sp.electronic_state
 vibrational_state(sp::Species) = sp.vibrational_state
 rotational_state(sp::Species) = sp.rotational_state
+mass(sp::Species) = gas(sp) isa Electron ? mass(gas(sp)) : mass(gas(sp)) - to_value(charge(sp))*mass(Electron())
 
 function get_parent_species(sp::Species)
     if !isnothing(rotational_state(sp))

@@ -14,7 +14,7 @@ include("electronic_state.jl")
 export ElectronicState, StringElectronicState
 
 include("species.jl")
-export gas, charge, electronic_state, vibrational_state, rotational_state
+export gas, charge, electronic_state, vibrational_state, rotational_state, mass
 
 include("species_tree.jl")
 export SpeciesTree, leaves

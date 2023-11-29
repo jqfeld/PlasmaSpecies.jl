@@ -38,3 +38,6 @@ Base.print(io::IO, c::Positive) = Base.print(io::IO, '+'^c.value)
 Base.print(io::IO, c::Negative) = Base.print(io::IO, '-'^c.value)
 Base.print(io::IO, ::Neutral) = Base.print(io::IO, "")
 
+to_value(c::Positive) = c.value
+to_value(c::Negative) = -c.value
+to_value(c::Neutral) = 0
