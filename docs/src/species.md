@@ -58,7 +58,7 @@ Further, the mass of a species (in kg) can be queried if its corresponding `gas`
 the corresponding method defined.`PlasmaSpecies` contains a few registered
 gases which are automatically recognized in the species strings and have their
 masses defined. The masses of the missing or additional
-electrons corresponding to the charge of the species are accounted. 
+electrons corresponding to the charge of the species are accounted for. 
 
 
 ```@repl species-methods
