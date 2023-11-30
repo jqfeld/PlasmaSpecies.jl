@@ -1,3 +1,21 @@
+"""
+    Species(
+        gas <: Gas, 
+        charge=Neutral(),  
+        electronic_state=nothing, 
+        vibrational_state=nothing, 
+        rotational_state=nothing
+    )
+
+## Fields
+#
+- `gas <: Gas`: Label of the parent gas, e.g. a struct like Nitrogen <: Gas or the general StringGas(str:String). 
+- `charge=Neutral()`: Charge of the species, e.g. Neutral(), Positive(n), Negative(n)  
+- `electronic_state=nothing`: Optional, label for the electronic state.
+- `vibrational_state=nothing`: Optional, label for the vibrational state. If defined, `electronic_state` cannot be `nothing`.
+- `rotational_state=nothing`: Optional, label for the rotational state. If defined, `vibrational_state` cannot be `nothing`.
+
+"""
 struct Species{S,C<:Charge,E,V,J}
     gas::S
     charge::C
@@ -5,7 +23,8 @@ struct Species{S,C<:Charge,E,V,J}
     vibrational_state::V
     rotational_state::J
 end
-    
+
+
 isnegative(x) = false
 isnegative(::Species{S,Negative,E,V,J}) where {S,E,V,J} = true
 ispositive(x) = false
@@ -20,6 +39,14 @@ Base.:(==)(x::S, y::S) where {S<:Species} =
     vibrational_state(x) == vibrational_state(y) &&
     rotational_state(x) == rotational_state(y)
 
+
+"""
+    Species(str::String)
+
+Convenience constructor for the `Species` struct. 
+It parses a string of the format defined by the [LoKI-B](https://github.com/IST-Lisbon/LoKI) 
+Boltzmann solver and automatically fills in the fields of `Species`.
+"""
 function Species(str::String)
     regex = r"(^(?:\w|\d)*)(?:\(([+\-]+)?,?([^,\)]+)?(?:,v=([^,\)]*)(?:,J=([^,\)]*))?)?\))?"
     m = collect(match(regex, str))
@@ -29,6 +56,7 @@ function Species(str::String)
         ElectronicState(m[3]),
         m[4:end]...)
 end
+Species(gas::G) where G<:Gas = Species(gas, Neutral(), nothing, nothing, nothing)
 
 
 gas(sp::Species) = sp.gas
