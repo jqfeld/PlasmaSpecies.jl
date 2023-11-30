@@ -6,7 +6,7 @@ DocMeta.setdocmeta!(PlasmaSpecies, :DocTestSetup, :(using PlasmaSpecies); recurs
 makedocs(;
     modules=[PlasmaSpecies],
     authors="Jan Kuhfeld <jan.kuhfeld@rub.de> and contributors",
-    repo="https://github.com/jqfeld/PlasmaSpecies.jl/blob/{commit}{path}#{line}",
+    repo=Remotes.GitHub("jqfeld", "PlasmaSpecies.jl"),
     sitename="PlasmaSpecies.jl",
     format=Documenter.HTML(;
         prettyurls=get(ENV, "CI", "false") == "true",
@@ -16,6 +16,9 @@ makedocs(;
     ),
     pages=[
         "Home" => "index.md",
+        "Species" => "species.md",
+        "Reactions" => "reactions.md",
+        "API" => "api.md"
     ],
 )
 
