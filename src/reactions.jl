@@ -32,6 +32,52 @@ function combine_same(sp, stoich)
     return new_sp, new_stoich
 end
 
+function Base.print(io::IO, recipe::PlasmaReaction)
+    if length(recipe.subs) > 1
+        reduce(function (x, y)
+                if x[2] > 1
+                    print(io, x[2])
+                end
+                show(io, x[1])
+                print(io, '+')
+                if y[2] > 1
+                    print(io, y[2])
+                end
+                print(io, y[1])
+            end, zip(recipe.subs, recipe.substoich))
+    else
+        if recipe.substoich[1] > 1
+            print(io, recipe.substoich[1])
+        end
+        print(io, recipe.subs[1])
+    end
+
+    if recipe.reverse
+        print(io, "<-->")
+    else
+        print(io, "-->")
+    end
+
+    if length(recipe.prods) > 1
+        reduce(function (x, y)
+                if x[2] > 1
+                    print(io, x[2])
+                end
+                print(io, x[1])
+                print(io, '+')
+                if y[2] > 1
+                    print(io, y[2])
+                end
+                print(io, y[1])
+            end, zip(recipe.prods, recipe.prodstoich))
+    else
+        if recipe.prodstoich[1] > 1
+            print(io, recipe.prodstoich[1])
+        end
+        print(io, recipe.prods[1])
+    end
+end
+
 
 function Base.show(io::IO, recipe::PlasmaReaction)
     if length(recipe.subs) > 1
