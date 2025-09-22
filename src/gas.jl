@@ -3,12 +3,17 @@ abstract type Gas end
 
 include("gases/electron.jl")
 include("gases/nitrogen.jl")
+include("gases/oxygen.jl")
 const REGISTERED_GASES = Dict(
     "e" => Electron,
     "N" => Nitrogen,
     "N2" => DiNitrogen,
     "N3" => TriNitrogen,
     "N4" => TetraNitrogen,
+    "O" => Oxygen,
+    "O2" => DiOxygen,
+    "O3" => TriOxygen,
+    "O4" => TetraOxygen,
 )
 Gas(x) = haskey(REGISTERED_GASES, x) ? REGISTERED_GASES[x]() : StringGas(x)
 

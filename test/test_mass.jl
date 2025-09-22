@@ -8,3 +8,9 @@ using Test
 @test mass(Species("N2(-)")) ≈ mass(Species("N2")) + mass(Species("e"))
 @test mass(Species("N2(+)")) ≈ mass(Species("N2")) - mass(Species("e"))
 
+@test mass(Species("O2")) == mass(DiOxygen())
+@test mass(Species("O2(X,v=0)")) == mass(Species("O2"))
+@test mass(Species("O2(X,v=0)")) == mass(p"O2")
+@test mass(Species("O2(-)")) ≈ mass(Species("O2")) + mass(Species("e"))
+@test mass(Species("O2(+)")) ≈ mass(Species("O2")) - mass(Species("e"))
+
