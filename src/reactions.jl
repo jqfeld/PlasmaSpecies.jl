@@ -1,164 +1,189 @@
 
 struct PlasmaReaction
-    subs
-    prods
-    substoich
-    prodstoich
-    reverse::Bool
+  subs
+  prods
+  substoich
+  prodstoich
+  reverse::Bool
+  function PlasmaReaction(subs, prods, substoich, prodstoich, reverse)
+    subs, substoich = sort_by_species(combine_same(subs, substoich)...)
+    prods, prodstoich = sort_by_species(combine_same(prods, prodstoich)...)
+    new(subs, prods, substoich, prodstoich, reverse)
+  end
 end
 
 
 function get_stoich(v::AbstractString)
-    m = match(r"^(\d+)", v)
-    return isnothing(m) ? 1 : parse(Int, m[1])
+  m = match(r"^(\d+)", v)
+  return isnothing(m) ? 1 : parse(Int, m[1])
 end
 remove_stoich(s::AbstractString) = replace(s, r"^\d+" => s"")
 
 
 function combine_same(sp, stoich)
-    new_sp = empty(sp)
-    new_stoich = empty(stoich)
-    while !isempty(sp)
-        s = pop!(sp)
-        st = pop!(stoich)
-        i = findfirst(==(s), new_sp)
-        if isnothing(i)
-            push!(new_sp, s)
-            push!(new_stoich, st)
-        else
-            new_stoich[i] += st
-        end
+  sp = copy(sp)
+  stoich = copy(stoich)
+  new_sp = empty(sp)
+  new_stoich = empty(stoich)
+  while !isempty(sp)
+    s = pop!(sp)
+    st = pop!(stoich)
+    i = findfirst(==(s), new_sp)
+    if isnothing(i)
+      push!(new_sp, s)
+      push!(new_stoich, st)
+    else
+      new_stoich[i] += st
     end
-    return new_sp, new_stoich
+  end
+  return new_sp, new_stoich
 end
 
 function Base.print(io::IO, recipe::PlasmaReaction)
-    if length(recipe.subs) > 1
-        reduce(function (x, y)
-                if x[2] > 1
-                    print(io, x[2])
-                end
-                show(io, x[1])
-                print(io, '+')
-                if y[2] > 1
-                    print(io, y[2])
-                end
-                print(io, y[1])
-            end, zip(recipe.subs, recipe.substoich))
-    else
-        if recipe.substoich[1] > 1
-            print(io, recipe.substoich[1])
+  if length(recipe.subs) > 1
+    reduce(function (x, y)
+        if x[2] > 1
+          print(io, x[2])
         end
-        print(io, recipe.subs[1])
-    end
-
-    if recipe.reverse
-        print(io, "<-->")
-    else
-        print(io, "-->")
-    end
-
-    if length(recipe.prods) > 1
-        reduce(function (x, y)
-                if x[2] > 1
-                    print(io, x[2])
-                end
-                print(io, x[1])
-                print(io, '+')
-                if y[2] > 1
-                    print(io, y[2])
-                end
-                print(io, y[1])
-            end, zip(recipe.prods, recipe.prodstoich))
-    else
-        if recipe.prodstoich[1] > 1
-            print(io, recipe.prodstoich[1])
+        show(io, x[1])
+        print(io, '+')
+        if y[2] > 1
+          print(io, y[2])
         end
-        print(io, recipe.prods[1])
+        print(io, y[1])
+      end, zip(recipe.subs, recipe.substoich))
+  else
+    if recipe.substoich[1] > 1
+      print(io, recipe.substoich[1])
     end
+    print(io, recipe.subs[1])
+  end
+
+  if recipe.reverse
+    print(io, "<-->")
+  else
+    print(io, "-->")
+  end
+
+  if length(recipe.prods) > 1
+    reduce(function (x, y)
+        if x[2] > 1
+          print(io, x[2])
+        end
+        print(io, x[1])
+        print(io, '+')
+        if y[2] > 1
+          print(io, y[2])
+        end
+        print(io, y[1])
+      end, zip(recipe.prods, recipe.prodstoich))
+  else
+    if recipe.prodstoich[1] > 1
+      print(io, recipe.prodstoich[1])
+    end
+    print(io, recipe.prods[1])
+  end
 end
 
 
 function Base.show(io::IO, recipe::PlasmaReaction)
-    if length(recipe.subs) > 1
-        reduce(function (x, y)
-                if x[2] > 1
-                    show(io, x[2])
-                end
-                show(io, x[1])
-                print(io, '+')
-                if y[2] > 1
-                    show(io, y[2])
-                end
-                show(io, y[1])
-            end, zip(recipe.subs, recipe.substoich))
-    else
-        if recipe.substoich[1] > 1
-            show(io, recipe.substoich[1])
-        end
-        show(io, recipe.subs[1])
+  if length(recipe.subs) > 1
+
+    if recipe.substoich[1] > 1
+      show(io, recipe.substoich[1])
+    end
+    show(io, recipe.subs[1])
+
+    for i in Iterators.drop(eachindex(recipe.subs), 1)
+      print(io, '+')
+      if recipe.substoich[i] > 1
+        show(io, recipe.substoich[i])
+      end
+      show(io, recipe.subs[i])
     end
 
-    if recipe.reverse
-        print(io, "<-->")
-    else
-        print(io, "-->")
+    # reduce(function (x, y)
+    #         if x[2] > 1
+    #             show(io, x[2])
+    #         end
+    #         show(io, x[1])
+    #         print(io, '+')
+    #         if y[2] > 1
+    #             show(io, y[2])
+    #         end
+    #         show(io, y[1])
+    #     end, zip(recipe.subs, recipe.substoich))
+
+  else
+    if recipe.substoich[1] > 1
+      show(io, recipe.substoich[1])
+    end
+    show(io, recipe.subs[1])
+  end
+
+  if recipe.reverse
+    print(io, "<-->")
+  else
+    print(io, "-->")
+  end
+
+  if length(recipe.prods) > 1
+
+    if recipe.prodstoich[1] > 1
+      show(io, recipe.prodstoich[1])
+    end
+    show(io, recipe.prods[1])
+
+    for i in Iterators.drop(eachindex(recipe.prods), 1)
+      print(io, '+')
+      if recipe.prodstoich[i] > 1
+        show(io, recipe.prodstoich[i])
+      end
+      show(io, recipe.prods[i])
     end
 
-    if length(recipe.prods) > 1
-        reduce(function (x, y)
-                if x[2] > 1
-                    show(io, x[2])
-                end
-                show(io, x[1])
-                print(io, '+')
-                if y[2] > 1
-                    show(io, y[2])
-                end
-                show(io, y[1])
-            end, zip(recipe.prods, recipe.prodstoich))
-    else
-        if recipe.prodstoich[1] > 1
-            show(io, recipe.prodstoich[1])
-        end
-        show(io, recipe.prods[1])
+  else
+    if recipe.prodstoich[1] > 1
+      show(io, recipe.prodstoich[1])
     end
+    show(io, recipe.prods[1])
+  end
 end
 
 function sort_by_species(sp, stoich)
-    p = sortperm(sp, rev=true)
-    return sp[p], stoich[p]
+  p = sortperm(sp, rev=true)
+  return sp[p], stoich[p]
 end
 
 function parse_reaction(str)
-    str = replace(str, r"\s" => "")
-    dir = match(r"(-->|<-->|<--)", str)[1]
-    reverse_reaction = dir == "<-->"
-    lhs, rhs = dir == "<--" ? split(str, "<--")[end:-1:1] : split(str, "-->")
-    substrates_str = split(lhs, r"(?<!\(|,)\+(?!,|\)|\s\)|\s,)")
-    products_str = split(rhs, r"(?<!\(|,)\+(?!,|\)|\s\)|\s,)")
-    substoich = get_stoich.(substrates_str)
-    prodstoich = get_stoich.(products_str)
-    subs = Species.(remove_stoich.(substrates_str))
-    prods = Species.(remove_stoich.(products_str))
-    subs, substoich = sort_by_species(combine_same(subs, substoich)...)
-    prods, prodstoich = sort_by_species(combine_same(prods, prodstoich)...)
-    return PlasmaReaction(
-        subs,
-        prods,
-        substoich,
-        prodstoich,
-        reverse_reaction
-    )
+  str = replace(str, r"\s" => "")
+  dir = match(r"(-->|<-->|<--)", str)[1]
+  reverse_reaction = dir == "<-->"
+  lhs, rhs = dir == "<--" ? split(str, "<--")[end:-1:1] : split(str, "-->")
+  substrates_str = split(lhs, r"(?<!\(|,)\+(?!,|\)|\s\)|\s,)")
+  products_str = split(rhs, r"(?<!\(|,)\+(?!,|\)|\s\)|\s,)")
+  substoich = get_stoich.(substrates_str)
+  prodstoich = get_stoich.(products_str)
+  subs = Species.(remove_stoich.(substrates_str))
+  prods = Species.(remove_stoich.(products_str))
+  subs, substoich = sort_by_species(combine_same(subs, substoich)...)
+  prods, prodstoich = sort_by_species(combine_same(prods, prodstoich)...)
+  return PlasmaReaction(
+    subs,
+    prods,
+    substoich,
+    prodstoich,
+    reverse_reaction
+  )
 end
 PlasmaReaction(str) = parse_reaction(str)
 
 macro p_str(s)
-    if contains(s, r"(-->|<-->|<--)")
-        return parse_reaction(s)
-    else
-        return Species(s)
-    end
+  if contains(s, r"(-->|<-->|<--)")
+    return parse_reaction(s)
+  else
+    return Species(s)
+  end
 
 end
 
@@ -177,22 +202,22 @@ over all possible products).
 
 """
 function apply_tree(t::SpeciesTree, reaction::PlasmaReaction)
-    substrate_vectors = Iterators.product([leaves(t[s]) for s in reaction.subs]...) .|> collect
-    products_vectors = Iterators.product([leaves(t[s]) for s in reaction.prods]...) .|> collect
-    branching_factor = 1 / length(products_vectors)
-    [(branching_factor, PlasmaReaction(subs, prods, reaction.substoich, reaction.prodstoich, reaction.reverse)) for subs in substrate_vectors for prods in products_vectors]
+  substrate_vectors = Iterators.product([leaves(t[s]) for s in reaction.subs]...) .|> collect
+  products_vectors = Iterators.product([leaves(t[s]) for s in reaction.prods]...) .|> collect
+  branching_factor = 1 / length(products_vectors)
+  [(branching_factor, PlasmaReaction(subs, prods, reaction.substoich, reaction.prodstoich, reaction.reverse)) for subs in substrate_vectors for prods in products_vectors]
 end
 
 function apply_tree(t::SpeciesTree, reactions::PlasmaReaction...)
-    out = []
-    for rate_reaction in reactions
-        try
-            append!(out, apply_tree(t, rate_reaction))
-        catch error
-            @warn "Skipping reaction because an error occured while making " rate_reaction error
-        end
+  out = []
+  for rate_reaction in reactions
+    try
+      append!(out, apply_tree(t, rate_reaction))
+    catch error
+      @warn "Skipping reaction because an error occured while making " rate_reaction error
     end
-    return out
+  end
+  return out
 end
 apply_tree(t::SpeciesTree, reactions::Vector{PlasmaReaction}) = PlasmaSpecies.apply_tree(t, reactions...)
 
