@@ -43,6 +43,31 @@ function PlasmaSpecies.to_catalyst(t::SpeciesTree, rate_reactions::Tuple{Any,Rea
     end
     return out
 end
-PlasmaSpecies.to_catalyst(t::SpeciesTree, rate_reactions::Vector{Tuple{Any,ReactionFormula}}) = PlasmaSpecies.to_catalyst(t, rate_reactions...)
+PlasmaSpecies.to_catalyst(t::SpeciesTree, rate_reactions::Vector{<:Tuple{Any,ReactionFormula}}) = PlasmaSpecies.to_catalyst(t, rate_reactions...)
+
+function PlasmaSpecies.to_catalyst(t::SpeciesTree, pr::PlasmaReaction)
+    [
+        Reaction(
+            r.rate,
+            PlasmaSpecies.to_catalyst.(r.formula.subs),
+            PlasmaSpecies.to_catalyst.(r.formula.prods),
+            r.formula.substoich,
+            r.formula.prodstoich
+        ) for r in apply_tree(t, pr)
+    ]
+end
+
+function PlasmaSpecies.to_catalyst(t::SpeciesTree, prs::PlasmaReaction...)
+    out = []
+    for pr in prs
+        try
+            append!(out, PlasmaSpecies.to_catalyst(t, pr))
+        catch error
+            @warn "Skipping reaction because an error occured while making " pr error
+        end
+    end
+    return out
+end
+PlasmaSpecies.to_catalyst(t::SpeciesTree, prs::Vector{<:PlasmaReaction}) = PlasmaSpecies.to_catalyst(t, prs...)
 
 end

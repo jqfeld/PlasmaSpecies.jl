@@ -1,27 +1,27 @@
 """
     Species(
-        gas <: Gas, 
-        charge=Neutral(),  
-        electronic_state=nothing, 
-        vibrational_state=nothing, 
+        gas <: Gas,
+        charge=Neutral(),
+        electronic_state=nothing,
+        vibrational_state=nothing,
         rotational_state=nothing
     )
 
 ## Fields
 #
-- `gas <: Gas`: Label of the parent gas, e.g. a struct like Nitrogen <: Gas or the general StringGas(str:String). 
-- `charge=Neutral()`: Charge of the species, e.g. Neutral(), Positive(n), Negative(n)  
+- `gas <: Gas`: Label of the parent gas, e.g. a struct like Nitrogen <: Gas or the general StringGas(str:String).
+- `charge=Neutral()`: Charge of the species, e.g. Neutral(), Positive(n), Negative(n)
 - `electronic_state=nothing`: Optional, label for the electronic state.
 - `vibrational_state=nothing`: Optional, label for the vibrational state. If defined, `electronic_state` cannot be `nothing`.
 - `rotational_state=nothing`: Optional, label for the rotational state. If defined, `vibrational_state` cannot be `nothing`.
 
 """
-struct Species{S,C<:Charge,E,V,J}
+Base.@kwdef struct Species{S,C<:Charge,E,V,J}
   gas::S
-  charge::C
-  electronic_state::E
-  vibrational_state::V
-  rotational_state::J
+  charge::C = Neutral()
+  electronic_state::E = nothing
+  vibrational_state::V = nothing
+  rotational_state::J = nothing
 end
 
 
@@ -49,7 +49,7 @@ Boltzmann solver and automatically fills in the fields of `Species`.
 """
 function Species(str::String)
   str = join(map(x -> isspace(str[x]) ? "" : str[x], 1:length(str)))
-  regex = r"(^(?:\w|\d)*)(?:\[([+\-]+)?,?([^,\]]+)?(?:,v=([^,\]]*)(?:,J=([^,\]]*))?)?\])?"
+  regex = r"(^(?:\w|\d)*)(?:\[([+\-]+)?,?([^,\]]+)?(?:,vib=([^,\]]*)(?:,rot=([^,\]]*))?)?\])?"
   m = collect(match(regex, str))
   Species(
     Gas(m[1]),
@@ -126,13 +126,13 @@ function Base.show(io::IO, sp::Species)
     out *= open_bracket ? "]" : ""
     return Base.print(io, out)
   else
-    out *= ",v=" * string(vibrational_state(sp))
+    out *= ",vib=" * string(vibrational_state(sp))
   end
   if isnothing(rotational_state(sp))
     out *= open_bracket ? "]" : ""
     return Base.print(io, out)
   else
-    out *= ",J=" * string(rotational_state(sp)) * "]"
+    out *= ",rot=" * string(rotational_state(sp)) * "]"
   end
   Base.print(io, out)
 end

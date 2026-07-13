@@ -47,10 +47,10 @@ using Test
     @testset "Species tree expansion" begin
         tree = SpeciesTree([
             "N2[A]",
-            "N2[A,v=1]",
+            "N2[A,vib=1]",
             "N2[B]",
-            "N2[B,v=1]",
-            "N2[B,v=2]",
+            "N2[B,vib=1]",
+            "N2[B,vib=2]",
             "e",
         ])
 
@@ -61,12 +61,12 @@ using Test
         @test all(first.(expanded) .== 0.5)
 
         expanded_rxns = last.(expanded)
-        @test all(string.(r.subs) == ["e", "N2[A,v=1]"] for r in expanded_rxns)
+        @test all(string.(r.subs) == ["e", "N2[A,vib=1]"] for r in expanded_rxns)
 
         product_signatures = Set(Tuple(string.(rxn.prods)) for rxn in expanded_rxns)
         @test product_signatures == Set([
-            ("e", "N2[B,v=1]"),
-            ("e", "N2[B,v=2]"),
+            ("e", "N2[B,vib=1]"),
+            ("e", "N2[B,vib=2]"),
         ])
     end
 end

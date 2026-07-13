@@ -25,8 +25,24 @@ using Test
         @test isnothing(rotational_state(charged))
     end
 
+    @testset "Keyword constructor" begin
+        sp = Species(gas=DiNitrogen())
+        @test gas(sp) == DiNitrogen()
+        @test charge(sp) isa Neutral
+        @test isnothing(electronic_state(sp))
+        @test isnothing(vibrational_state(sp))
+        @test isnothing(rotational_state(sp))
+
+        sp2 = Species(gas=DiNitrogen(), charge=Positive(1), electronic_state=StringElectronicState("B"), vibrational_state="3")
+        @test gas(sp2) == DiNitrogen()
+        @test charge(sp2) == Positive(1)
+        @test string(electronic_state(sp2)) == "B"
+        @test vibrational_state(sp2) == "3"
+        @test isnothing(rotational_state(sp2))
+    end
+
     @testset "String parsing" begin
-        parsed = Species(" N2[+, X, v=2, J=1] ")
+        parsed = Species(" N2[+, X, vib=2, rot=1] ")
         @test gas(parsed) == DiNitrogen()
         @test charge(parsed) == Positive(1)
         @test string(electronic_state(parsed)) == "X"
@@ -44,8 +60,8 @@ using Test
     end
 
     @testset "Parent relationships" begin
-        full = Species("N2[+,B,v=3,J=5]")
-        vib = Species("N2[+,B,v=3]")
+        full = Species("N2[+,B,vib=3,rot=5]")
+        vib = Species("N2[+,B,vib=3]")
         elec = Species("N2[+,B]")
         base = Species("N2[+]")
 
@@ -62,7 +78,7 @@ using Test
     end
 
     @testset "Equality and ordering" begin
-        @test Species("N2[X,v=1]") == Species("N2[ X , v=1]")
+        @test Species("N2[X,vib=1]") == Species("N2[ X , vib=1]")
 
         ordering = Species.(["N2[+]", "N2", "e"])
         @test sort(ordering) == Species.(["N2", "N2[+]", "e"])
@@ -72,11 +88,11 @@ using Test
     end
 
     @testset "Display" begin
-        sp = Species("N2[+,X,v=2,J=3]")
-        @test string(sp) == "N2[+,X,v=2,J=3]"
+        sp = Species("N2[+,X,vib=2,rot=3]")
+        @test string(sp) == "N2[+,X,vib=2,rot=3]"
 
-        neutral = Species("N2[X,v=2]")
-        @test string(neutral) == "N2[X,v=2]"
+        neutral = Species("N2[X,vib=2]")
+        @test string(neutral) == "N2[X,vib=2]"
 
         bare = Species("N2")
         @test string(bare) == "N2"

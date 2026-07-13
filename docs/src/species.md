@@ -18,7 +18,7 @@ Species(::String)
 With this the definition of a species is as easy as
 ```@example
 using PlasmaSpecies
-Species("N2[X,v=0,J=10]")
+Species("N2[X,vib=0,rot=10]")
 ```
 
 A valid string consists of a label for the gas (`N2`) optionally more
@@ -26,14 +26,14 @@ detailed information can be given in brackets separated by commas, starting with
 variable number of `+` or `-` signs or a zero. If no charge is explicitly given
 the default (`Neutral()`) is used. The charge is followed by an optional label for the
 electronic state. The labels for the vibrational and rotational states are
-prefixed by `v=` or `J=`, respectively.
+prefixed by `vib=` or `rot=`, respectively.
 Some valid examples are:
 ```@repl
 using PlasmaSpecies
 Species("e")
 Species("N3[+]")
 Species("N2[+,B]")
-Species("N2[-,X,v=2]")
+Species("N2[-,X,vib=2]")
 p"N4[+]"
 ```
 
