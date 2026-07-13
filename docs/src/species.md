@@ -18,7 +18,7 @@ Species(::String)
 With this the definition of a species is as easy as
 ```@example
 using PlasmaSpecies
-Species("N2(X,v=0,J=10)")
+Species("N2[X,v=0,J=10]")
 ```
 
 A valid string consists of a label for the gas (`N2`) optionally more
@@ -31,10 +31,10 @@ Some valid examples are:
 ```@repl
 using PlasmaSpecies
 Species("e")
-Species("N3(+)")
-Species("N2(+,B)")
-Species("N2(-,X,v=2)")
-p"N4(+)"
+Species("N3[+]")
+Species("N2[+,B]")
+Species("N2[-,X,v=2]")
+p"N4[+]"
 ```
 
 The last repl command uses the `p"..."` string macro which can be used to
@@ -46,7 +46,7 @@ Various methods exist to query information from a `Species` object.
 These include methods to obtain the fields of the struct:
 ```@repl species-methods; continued = true
 using PlasmaSpecies
-sp = Species("N2(+,B)")
+sp = Species("N2[+,B]")
 gas(sp)
 charge(sp)
 electronic_state(sp)
@@ -66,7 +66,7 @@ mass(sp)
 mass(p"e")
 mass(p"N2")
 mass(p"N2") - mass(p"e") ≈ mass(sp)
-mass(p"unknown_gas(+,X)")
+mass(p"unknown_gas[+,X]")
 struct UnknownGas <: Gas end
 PlasmaSpecies.mass(::UnknownGas) = π * 1e-26
 mass(Species(UnknownGas()))

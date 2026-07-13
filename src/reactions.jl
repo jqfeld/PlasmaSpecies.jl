@@ -1,11 +1,11 @@
 
-struct PlasmaReaction
+struct ReactionFormula
   subs
   prods
   substoich
   prodstoich
   reverse::Bool
-  function PlasmaReaction(subs, prods, substoich, prodstoich, reverse)
+  function ReactionFormula(subs, prods, substoich, prodstoich, reverse)
     subs, substoich = sort_by_species(combine_same(subs, substoich)...)
     prods, prodstoich = sort_by_species(combine_same(prods, prodstoich)...)
     new(subs, prods, substoich, prodstoich, reverse)
@@ -39,7 +39,7 @@ function combine_same(sp, stoich)
   return new_sp, new_stoich
 end
 
-function Base.print(io::IO, recipe::PlasmaReaction)
+function Base.print(io::IO, recipe::ReactionFormula)
   if length(recipe.subs) > 1
     reduce(function (x, y)
         if x[2] > 1
@@ -86,7 +86,7 @@ function Base.print(io::IO, recipe::PlasmaReaction)
 end
 
 
-function Base.show(io::IO, recipe::PlasmaReaction)
+function Base.show(io::IO, recipe::ReactionFormula)
   if length(recipe.subs) > 1
 
     if recipe.substoich[1] > 1
@@ -160,15 +160,15 @@ function parse_reaction(str)
   dir = match(r"(-->|<-->|<--)", str)[1]
   reverse_reaction = dir == "<-->"
   lhs, rhs = dir == "<--" ? split(str, "<--")[end:-1:1] : split(str, "-->")
-  substrates_str = split(lhs, r"(?<!\(|,)\+(?!,|\)|\s\)|\s,)")
-  products_str = split(rhs, r"(?<!\(|,)\+(?!,|\)|\s\)|\s,)")
+  substrates_str = split(lhs, r"(?<!\[|,)\+(?!,|\]|\s\]|\s,)")
+  products_str = split(rhs, r"(?<!\[|,)\+(?!,|\]|\s\]|\s,)")
   substoich = get_stoich.(substrates_str)
   prodstoich = get_stoich.(products_str)
   subs = Species.(remove_stoich.(substrates_str))
   prods = Species.(remove_stoich.(products_str))
   subs, substoich = sort_by_species(combine_same(subs, substoich)...)
   prods, prodstoich = sort_by_species(combine_same(prods, prodstoich)...)
-  return PlasmaReaction(
+  return ReactionFormula(
     subs,
     prods,
     substoich,
@@ -176,7 +176,7 @@ function parse_reaction(str)
     reverse_reaction
   )
 end
-PlasmaReaction(str) = parse_reaction(str)
+ReactionFormula(str) = parse_reaction(str)
 
 macro p_str(s)
   if contains(s, r"(-->|<-->|<--)")
@@ -189,7 +189,7 @@ end
 
 """
     ```julia 
-    apply_tree(t::SpeciesTree, reactions::PlasmaReaction)
+    apply_tree(t::SpeciesTree, reactions::ReactionFormula)
     ```
 
 Apply the species tree to a reaction and return an array with tuples containing 
@@ -201,14 +201,14 @@ descendants (effectively assuming that the total reaction rate is distributed eq
 over all possible products).
 
 """
-function apply_tree(t::SpeciesTree, reaction::PlasmaReaction)
+function apply_tree(t::SpeciesTree, reaction::ReactionFormula)
   substrate_vectors = Iterators.product([leaves(t[s]) for s in reaction.subs]...) .|> collect
   products_vectors = Iterators.product([leaves(t[s]) for s in reaction.prods]...) .|> collect
   branching_factor = 1 / length(products_vectors)
-  [(branching_factor, PlasmaReaction(subs, prods, reaction.substoich, reaction.prodstoich, reaction.reverse)) for subs in substrate_vectors for prods in products_vectors]
+  [(branching_factor, ReactionFormula(subs, prods, reaction.substoich, reaction.prodstoich, reaction.reverse)) for subs in substrate_vectors for prods in products_vectors]
 end
 
-function apply_tree(t::SpeciesTree, reactions::PlasmaReaction...)
+function apply_tree(t::SpeciesTree, reactions::ReactionFormula...)
   out = []
   for rate_reaction in reactions
     try
@@ -219,8 +219,20 @@ function apply_tree(t::SpeciesTree, reactions::PlasmaReaction...)
   end
   return out
 end
-apply_tree(t::SpeciesTree, reactions::Vector{PlasmaReaction}) = PlasmaSpecies.apply_tree(t, reactions...)
+apply_tree(t::SpeciesTree, reactions::Vector{ReactionFormula}) = PlasmaSpecies.apply_tree(t, reactions...)
 
 
-ismassbalanced(r::PlasmaReaction) = sum(mass.(r.prods) .* r.prodstoich) ≈ sum(mass.(r.subs) .* r.substoich)
-ischargebalanced(r::PlasmaReaction) = sum(to_value.(charge.(r.prods)) .* r.prodstoich) == sum(to_value.(charge.(r.subs)) .* r.substoich)
+ismassbalanced(r::ReactionFormula) = sum(mass.(r.prods) .* r.prodstoich) ≈ sum(mass.(r.subs) .* r.substoich)
+ischargebalanced(r::ReactionFormula) = sum(to_value.(charge.(r.prods)) .* r.prodstoich) == sum(to_value.(charge.(r.subs)) .* r.substoich)
+
+
+struct PlasmaReaction{R,F<:ReactionFormula}
+    rate::R
+    formula::F
+end
+
+function apply_tree(t::SpeciesTree, pr::PlasmaReaction)
+  [PlasmaReaction(pr.rate * branching_factor, formula) for (branching_factor, formula) in apply_tree(t, pr.formula)]
+end
+
+

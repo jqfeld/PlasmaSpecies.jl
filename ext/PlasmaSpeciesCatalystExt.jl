@@ -18,7 +18,7 @@ function PlasmaSpecies.to_catalyst(t::SpeciesTree)
     leaves(t) .|> PlasmaSpecies.to_catalyst |> sum
 end
 
-function PlasmaSpecies.to_catalyst(t::SpeciesTree, rate_reaction::Tuple{Any,PlasmaReaction})
+function PlasmaSpecies.to_catalyst(t::SpeciesTree, rate_reaction::Tuple{Any,ReactionFormula})
     rate, reaction = rate_reaction
     scaled_reactions = apply_tree(t, reaction)
     # parameter_symbol = Symbol("k["*string(reaction)*"]")
@@ -32,7 +32,7 @@ function PlasmaSpecies.to_catalyst(t::SpeciesTree, rate_reaction::Tuple{Any,Plas
     ]
 end
 
-function PlasmaSpecies.to_catalyst(t::SpeciesTree, rate_reactions::Tuple{Any,PlasmaReaction}...)
+function PlasmaSpecies.to_catalyst(t::SpeciesTree, rate_reactions::Tuple{Any,ReactionFormula}...)
     out = []
     for rate_reaction in rate_reactions
         try
@@ -43,6 +43,6 @@ function PlasmaSpecies.to_catalyst(t::SpeciesTree, rate_reactions::Tuple{Any,Pla
     end
     return out
 end
-PlasmaSpecies.to_catalyst(t::SpeciesTree, rate_reactions::Vector{Tuple{Any,PlasmaReaction}}) = PlasmaSpecies.to_catalyst(t, rate_reactions...)
+PlasmaSpecies.to_catalyst(t::SpeciesTree, rate_reactions::Vector{Tuple{Any,ReactionFormula}}) = PlasmaSpecies.to_catalyst(t, rate_reactions...)
 
 end

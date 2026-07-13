@@ -20,8 +20,8 @@ include("species_tree.jl")
 export SpeciesTree, leaves
 
 include("reactions.jl")
-export PlasmaReaction
-export parse_reaction, @p_str 
+export ReactionFormula, PlasmaReaction
+export parse_reaction, @p_str
 export apply_tree
 
 

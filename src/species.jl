@@ -49,7 +49,7 @@ Boltzmann solver and automatically fills in the fields of `Species`.
 """
 function Species(str::String)
   str = join(map(x -> isspace(str[x]) ? "" : str[x], 1:length(str)))
-  regex = r"(^(?:\w|\d)*)(?:\(([+\-]+)?,?([^,\)]+)?(?:,v=([^,\)]*)(?:,J=([^,\)]*))?)?\))?"
+  regex = r"(^(?:\w|\d)*)(?:\[([+\-]+)?,?([^,\]]+)?(?:,v=([^,\]]*)(?:,J=([^,\]]*))?)?\])?"
   m = collect(match(regex, str))
   Species(
     Gas(m[1]),
@@ -115,24 +115,24 @@ function Base.show(io::IO, sp::Species)
   open_bracket = false
   if !(charge(sp) isa Neutral) && string(gas(sp)) != "e"
     open_bracket = true
-    out *= "($(charge(sp))"
+    out *= "[$(charge(sp))"
   end
   if !isnothing(electronic_state(sp))
-    out *= !open_bracket ? "(" : ","
+    out *= !open_bracket ? "[" : ","
     open_bracket = true
     out *= string(electronic_state(sp))
   end
   if isnothing(vibrational_state(sp))
-    out *= open_bracket ? ")" : ""
+    out *= open_bracket ? "]" : ""
     return Base.print(io, out)
   else
     out *= ",v=" * string(vibrational_state(sp))
   end
   if isnothing(rotational_state(sp))
-    out *= open_bracket ? ")" : ""
+    out *= open_bracket ? "]" : ""
     return Base.print(io, out)
   else
-    out *= ",J=" * string(rotational_state(sp)) * ")"
+    out *= ",J=" * string(rotational_state(sp)) * "]"
   end
   Base.print(io, out)
 end

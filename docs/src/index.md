@@ -15,7 +15,7 @@ Some of its features are:
   corresponding [Catalyst.jl](https://github.com/SciML/MethodOfLines.jl)
   `Reaction`s.
 * Some convenience functionality, e.g., a string macro to define species
-  (`p"e"` or `p"N2"`) and reactions (`p"e + N2 --> 2e + N2(+)`) using the
+  (`p"e"` or `p"N2"`) and reactions (`p"e + N2 --> 2e + N2[+]"`) using the
   notation introduced by the [LoKI-B](https://github.com/IST-Lisbon/LoKI)
   Boltzmann solver.
 

@@ -26,7 +26,7 @@ using Test
     end
 
     @testset "String parsing" begin
-        parsed = Species(" N2(+, X, v=2, J=1) ")
+        parsed = Species(" N2[+, X, v=2, J=1] ")
         @test gas(parsed) == DiNitrogen()
         @test charge(parsed) == Positive(1)
         @test string(electronic_state(parsed)) == "X"
@@ -37,17 +37,17 @@ using Test
         @test gas(electron) == Electron()
         @test charge(electron) == Negative(1)
 
-        unknown = Species("Ar(+)")
+        unknown = Species("Ar[+]")
         @test gas(unknown) isa StringGas
         @test string(gas(unknown)) == "Ar"
         @test charge(unknown) == Positive(1)
     end
 
     @testset "Parent relationships" begin
-        full = Species("N2(+,B,v=3,J=5)")
-        vib = Species("N2(+,B,v=3)")
-        elec = Species("N2(+,B)")
-        base = Species("N2(+)")
+        full = Species("N2[+,B,v=3,J=5]")
+        vib = Species("N2[+,B,v=3]")
+        elec = Species("N2[+,B]")
+        base = Species("N2[+]")
 
         @test get_parent_species(full) == vib
         @test get_parent_species(vib) == elec
@@ -58,25 +58,25 @@ using Test
         @test is_parent_species(full, elec)
         @test is_parent_species(full, base)
         @test is_parent_species(vib, full)
-        @test is_parent_species(full, Species("N2(B)"))
+        @test is_parent_species(full, Species("N2[B]"))
     end
 
     @testset "Equality and ordering" begin
-        @test Species("N2(X,v=1)") == Species("N2( X , v=1)")
+        @test Species("N2[X,v=1]") == Species("N2[ X , v=1]")
 
-        ordering = Species.(["N2(+)", "N2", "e"])
-        @test sort(ordering) == Species.(["N2", "N2(+)", "e"])
+        ordering = Species.(["N2[+]", "N2", "e"])
+        @test sort(ordering) == Species.(["N2", "N2[+]", "e"])
 
-        states = Species.(["N2(B)", "N2(X)"])
-        @test sort(states) == Species.(["N2(B)", "N2(X)"])
+        states = Species.(["N2[B]", "N2[X]"])
+        @test sort(states) == Species.(["N2[B]", "N2[X]"])
     end
 
     @testset "Display" begin
-        sp = Species("N2(+,X,v=2,J=3)")
-        @test string(sp) == "N2(+,X,v=2,J=3)"
+        sp = Species("N2[+,X,v=2,J=3]")
+        @test string(sp) == "N2[+,X,v=2,J=3]"
 
-        neutral = Species("N2(X,v=2)")
-        @test string(neutral) == "N2(X,v=2)"
+        neutral = Species("N2[X,v=2]")
+        @test string(neutral) == "N2[X,v=2]"
 
         bare = Species("N2")
         @test string(bare) == "N2"
@@ -84,8 +84,8 @@ using Test
 
     @testset "Mass" begin
         neutral = Species("N2")
-        positive = Species("N2(+)")
-        negative = Species("N2(-)")
+        positive = Species("N2[+]")
+        negative = Species("N2[-]")
         electron = Species("e")
 
         me = mass(Electron())

@@ -41,14 +41,14 @@ julia> using PlasmaSpecies
 julia> electron = p"e"
 Species(StringGas("e"), Negative(1), nothing, nothing, nothing)
 
-julia> nitrogen_ion = Species("N2(+,B)")
+julia> nitrogen_ion = Species("N2[+,B]")
 Species(Nitrogen(), Positive(1), StringElectronicState("B"), nothing, nothing)
 
 julia> gas(nitrogen_ion), charge(nitrogen_ion)
 (Nitrogen(), Positive(1))
 
-julia> reaction = p"e + N2 --> 2e + N2(+)"
-PlasmaReaction(Species[Species(StringGas("e"), Negative(1), nothing, nothing, nothing), Species(Nitrogen(), Neutral(), nothing, nothing, nothing)], Species[Species(StringGas("e"), Negative(1), nothing, nothing, nothing), Species(Nitrogen(), Positive(1), nothing, nothing, nothing)], [1, 1], [2, 1], false)
+julia> reaction = p"e + N2 --> 2e + N2[+]"
+ReactionFormula(Species[Species(StringGas("e"), Negative(1), nothing, nothing, nothing), Species(Nitrogen(), Neutral(), nothing, nothing, nothing)], Species[Species(StringGas("e"), Negative(1), nothing, nothing, nothing), Species(Nitrogen(), Positive(1), nothing, nothing, nothing)], [1, 1], [2, 1], false)
 
 julia> reaction.subs, reaction.prods
 (Species[Species(StringGas("e"), Negative(1), nothing, nothing, nothing), Species(Nitrogen(), Neutral(), nothing, nothing, nothing)], Species[Species(StringGas("e"), Negative(1), nothing, nothing, nothing), Species(Nitrogen(), Positive(1), nothing, nothing, nothing)])
