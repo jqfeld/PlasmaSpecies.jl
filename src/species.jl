@@ -52,10 +52,12 @@ function Species(str::String)
   regex = r"(^(?:\w|\d)*)(?:\[([+\-]+)?,?([^,\]]+)?(?:,vib=([^,\]]*)(?:,rot=([^,\]]*))?)?\])?"
   m = collect(match(regex, str))
   Species(
-    Gas(m[1]),
-    m[1] == "e" ? Negative(1) : Charge(m[2]),
-    ElectronicState(m[3]),
-    m[4:end]...)
+    gas = Gas(m[1]),
+    charge = m[1] == "e" ? Negative(1) : Charge(m[2]),
+    electronic_state = ElectronicState(m[3]),
+    vibrational_state = m[4],
+    rotational_state = m[5])
+    # m[4:end]...)
 end
 Species(gas::G) where {G<:Gas} = Species(gas, Neutral(), nothing, nothing, nothing)
 
