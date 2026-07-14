@@ -16,12 +16,13 @@
 - `rotational_state=nothing`: Optional, label for the rotational state. If defined, `vibrational_state` cannot be `nothing`.
 
 """
-Base.@kwdef struct Species{S,C<:Charge,E,V,J}
+Base.@kwdef mutable struct Species{S,C<:Charge,E,V,J,En}
   gas::S
   charge::C = Neutral()
   electronic_state::E = nothing
   vibrational_state::V = nothing
   rotational_state::J = nothing
+  energy::En = nothing
 end
 
 
@@ -32,7 +33,7 @@ ispositive(::Species{S,Positive,E,V,J}) where {S,E,V,J} = true
 isneutral(x) = false
 isneutral(::Species{S,Neutral,E,V,J}) where {S,E,V,J} = true
 
-Base.:(==)(x::S, y::S) where {S<:Species} =
+Base.:(==)(x::S1, y::S2) where {S1<:Species, S2<:Species} =
   gas(x) == gas(y) &&
   charge(x) == charge(y) &&
   electronic_state(x) == electronic_state(y) &&
@@ -49,7 +50,7 @@ Boltzmann solver and automatically fills in the fields of `Species`.
 """
 function Species(str::String)
   str = join(map(x -> isspace(str[x]) ? "" : str[x], 1:length(str)))
-  regex = r"(^(?:\w|\d)*)(?:\[([+\-]+)?,?([^,\]]+)?(?:,vib=([^,\]]*)(?:,rot=([^,\]]*))?)?\])?"
+  regex = r"(^(?:\w|\d)*)(?:\[([+\-]+)?,?([^,\]]+)?(?:,vib=(\([^\)]*\)|[^,\]]*)(?:,rot=(\([^\)]*\)|[^,\]]*))?)?\])?"
   m = collect(match(regex, str))
   Species(
     gas = Gas(m[1]),
@@ -59,7 +60,7 @@ function Species(str::String)
     rotational_state = m[5])
     # m[4:end]...)
 end
-Species(gas::G) where {G<:Gas} = Species(gas, Neutral(), nothing, nothing, nothing)
+Species(gas::G) where {G<:Gas} = Species(gas, Neutral(), nothing, nothing, nothing, nothing)
 
 
 gas(sp::Species) = sp.gas
@@ -67,6 +68,7 @@ charge(sp::Species) = sp.charge
 electronic_state(sp::Species) = sp.electronic_state
 vibrational_state(sp::Species) = sp.vibrational_state
 rotational_state(sp::Species) = sp.rotational_state
+energy(sp::Species) = sp.energy
 mass(sp::Species) = gas(sp) isa Electron ? mass(gas(sp)) : mass(gas(sp)) - to_value(charge(sp)) * mass(Electron())
 
 function get_parent_species(sp::Species)
@@ -76,6 +78,7 @@ function get_parent_species(sp::Species)
       charge(sp),
       electronic_state(sp),
       vibrational_state(sp),
+      nothing,
       nothing
     )
   elseif !isnothing(vibrational_state(sp))
@@ -84,12 +87,14 @@ function get_parent_species(sp::Species)
       charge(sp),
       electronic_state(sp),
       nothing,
+      nothing,
       nothing
     )
   elseif !isnothing(electronic_state(sp))
     return Species(
       gas(sp),
       charge(sp),
+      nothing,
       nothing,
       nothing,
       nothing

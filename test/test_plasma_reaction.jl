@@ -46,6 +46,44 @@ using Test
         ])
     end
 
+    @testset "energy: known energies" begin
+        sp1 = Species(gas=DiNitrogen(), energy=2.0)
+        sp2 = Species(gas=DiNitrogen(), electronic_state=StringElectronicState("A"), energy=5.0)
+        pr = PlasmaReaction(1.0, ReactionFormula([sp1], [sp2], [1], [1], false))
+        @test reaction_energy(pr) ≈ 3.0
+    end
+
+    @testset "energy: stoichiometry" begin
+        sp1 = Species(gas=DiNitrogen(), energy=1.0)
+        sp2 = Species(gas=DiNitrogen(), electronic_state=StringElectronicState("A"), energy=4.0)
+        # 2*sp1 --> sp2: energy = 4.0 - 2*1.0 = 2.0
+        pr = PlasmaReaction(1.0, ReactionFormula([sp1], [sp2], [2], [1], false))
+        @test reaction_energy(pr) ≈ 2.0
+    end
+
+    @testset "energy: unknown energy returns nothing" begin
+        sp1 = Species(gas=DiNitrogen())
+        sp2 = Species(gas=DiNitrogen(), electronic_state=StringElectronicState("A"), energy=5.0)
+        pr_unknown_sub = PlasmaReaction(1.0, ReactionFormula([sp1], [sp2], [1], [1], false))
+        @test isnothing(reaction_energy(pr_unknown_sub))
+
+        sp3 = Species(gas=DiNitrogen(), energy=2.0)
+        pr_unknown_prod = PlasmaReaction(1.0, ReactionFormula([sp3], [sp1], [1], [1], false))
+        @test isnothing(reaction_energy(pr_unknown_prod))
+    end
+
+    @testset "apply_tree: Vector{PlasmaReaction}" begin
+        tree = SpeciesTree(["N2", "e", "N2[+]"])
+        prs = [
+            PlasmaReaction(1.0e-14, ReactionFormula("N2 + e --> N2[+] + 2e")),
+            PlasmaReaction(2.0e-14, ReactionFormula("N2 + e --> N2 + e")),
+        ]
+        expanded = apply_tree(tree, prs)
+        @test length(expanded) == 2
+        @test expanded[1].rate ≈ 1.0e-14
+        @test expanded[2].rate ≈ 2.0e-14
+    end
+
     @testset "apply_tree: rate is distributed across branches" begin
         # N2[A,vib=1] is a leaf (substrate, no branching); N2[B] has two leaves (product, branching_factor = 0.5)
         # → 2 expanded reactions each with rate 6.0 * 0.5 = 3.0, sum = 6.0

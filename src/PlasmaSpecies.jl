@@ -14,15 +14,16 @@ include("electronic_state.jl")
 export ElectronicState, StringElectronicState
 
 include("species.jl")
-export gas, charge, electronic_state, vibrational_state, rotational_state, mass
+export gas, charge, electronic_state, vibrational_state, rotational_state, energy, mass
 
 include("species_tree.jl")
-export SpeciesTree, leaves
+export SpeciesTree, leaves, apply_energy!
 
 include("reactions.jl")
 export ReactionFormula, PlasmaReaction
 export parse_reaction, @p_str
 export apply_tree
+export reaction_energy
 
 
 # CatalystExt definitions

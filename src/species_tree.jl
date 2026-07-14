@@ -1,6 +1,7 @@
 using AbstractTrees
 
-struct SpeciesTree
+using Base: setindex
+mutable struct SpeciesTree
     x::Union{Species,Nothing}
     children::Vector{SpeciesTree}
 end
@@ -28,6 +29,8 @@ end
 SpeciesTree(str::String) = SpeciesTree(Species(str))
 SpeciesTree(str::Vector{String}) = merge!(SpeciesTree.(str)...)
 SpeciesTree(str::String...) = SpeciesTree(String[str...])
+SpeciesTree(sps::Vector{<:Species}) = merge!(SpeciesTree.(sps)...)
+SpeciesTree(sps::Species...) = SpeciesTree(Species[sps...])
 
 function Base.merge!(left::SpeciesTree, right::SpeciesTree)
     for nv in children(right)
@@ -51,6 +54,8 @@ function Base.getindex(t::SpeciesTree, s::Species)
         if nodevalue(c) == s
             return c
         end
+
+        # if not found on this level, recursively ascend the tree
         out = Base.getindex(c, s)
         if !isnothing(out)
             return out
@@ -60,4 +65,37 @@ end
 
 Base.getindex(t::SpeciesTree, s::String) = t[Species(s)]
 
+function Base.setindex!(t::SpeciesTree, tn::SpeciesTree, s::Species)
+    t[s].x = tn[s].x
+    t[s].children = tn[s].children
+    return t
+end
+
+Base.setindex!(t::SpeciesTree, tn::SpeciesTree, s::String) = setindex!(t, tn, Species(s))
+
 leaves(t::SpeciesTree) = Leaves(t) |> collect .|> nodevalue
+
+
+
+function apply_energy!(tr, energy)
+    for l in AbstractTrees.Leaves(tr)
+        species = l.x
+        new_species = Species(
+            gas = species.gas,
+            charge = species.charge,
+            electronic_state = species.electronic_state,
+            vibrational_state = species.vibrational_state,
+            rotational_state = species.rotational_state,
+            energy = energy(
+                (
+                    elec = electronic_state(species),
+                    vib = vibrational_state(species),
+                    rot = rotational_state(species),
+                )
+            )
+        )
+        l.x = new_species
+    end
+    return tr
+end
+

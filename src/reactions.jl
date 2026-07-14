@@ -235,4 +235,25 @@ function apply_tree(t::SpeciesTree, pr::PlasmaReaction)
   [PlasmaReaction(pr.rate * branching_factor, formula) for (branching_factor, formula) in apply_tree(t, pr.formula)]
 end
 
+function apply_tree(t::SpeciesTree, prs::PlasmaReaction...)
+  out = []
+  for pr in prs
+    try
+      append!(out, apply_tree(t, pr))
+    catch error
+      @warn "Skipping reaction because an error occured while making " pr error
+    end
+  end
+  return out
+end
+apply_tree(t::SpeciesTree, prs::Vector{<:PlasmaReaction}) = apply_tree(t, prs...)
+
+function reaction_energy(r::PlasmaReaction)
+  f = r.formula
+  any(isnothing ∘ energy, f.subs) && return nothing
+  any(isnothing ∘ energy, f.prods) && return nothing
+  sum(energy(sp) * st for (sp, st) in zip(f.prods, f.prodstoich)) -
+  sum(energy(sp) * st for (sp, st) in zip(f.subs, f.substoich))
+end
+
 

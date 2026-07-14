@@ -17,6 +17,7 @@ using Test
             StringElectronicState("B"),
             "1",
             nothing,
+            nothing,
         )
         @test gas(charged) == DiNitrogen()
         @test charge(charged) == Positive(2)
