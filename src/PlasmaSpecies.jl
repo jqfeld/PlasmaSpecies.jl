@@ -23,7 +23,7 @@ include("reactions.jl")
 export ReactionFormula, PlasmaReaction
 export parse_reaction, @p_str
 export apply_tree
-export reaction_energy
+export reaction_energy, thermal_source_term, isreactive
 
 
 # CatalystExt definitions

@@ -224,12 +224,15 @@ apply_tree(t::SpeciesTree, reactions::Vector{ReactionFormula}) = PlasmaSpecies.a
 
 ismassbalanced(r::ReactionFormula) = sum(mass.(r.prods) .* r.prodstoich) ≈ sum(mass.(r.subs) .* r.substoich)
 ischargebalanced(r::ReactionFormula) = sum(to_value.(charge.(r.prods)) .* r.prodstoich) == sum(to_value.(charge.(r.subs)) .* r.substoich)
+isreactive(r::ReactionFormula) = !(r.subs == r.prods && r.substoich == r.prodstoich)
 
 
 struct PlasmaReaction{R,F<:ReactionFormula}
     rate::R
     formula::F
 end
+
+isreactive(r::PlasmaReaction) = isreactive(r.formula)
 
 function apply_tree(t::SpeciesTree, pr::PlasmaReaction)
   [PlasmaReaction(pr.rate * branching_factor, formula) for (branching_factor, formula) in apply_tree(t, pr.formula)]
@@ -247,6 +250,13 @@ function apply_tree(t::SpeciesTree, prs::PlasmaReaction...)
   return out
 end
 apply_tree(t::SpeciesTree, prs::Vector{<:PlasmaReaction}) = apply_tree(t, prs...)
+
+function thermal_source_term(pr::PlasmaReaction)
+  ΔE = reaction_energy(pr)
+  isnothing(ΔE) && error("Cannot compute thermal source term: one or more species have unknown energy.")
+  stoichs = pr.formula.substoich
+  (ns...) -> pr.rate * prod(n^st for (n, st) in zip(ns, stoichs)) * (-ΔE)
+end
 
 function reaction_energy(r::PlasmaReaction)
   f = r.formula

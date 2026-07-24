@@ -1,11 +1,14 @@
 name = "PlasmaSpecies"
 uuid = "1237f1af-269d-46a1-ad5b-ab7f5eece4fc"
-authors = ["Jan Kuhfeld <jan.kuhfeld@rub.de> and contributors"]
 version = "0.1.0"
+authors = ["Jan Kuhfeld <jan.kuhfeld@rub.de> and contributors"]
 
 [deps]
 AbstractTrees = "1520ce14-60c1-5f80-bbc7-55ef81b5835c"
 SafeTestsets = "1bc83da4-3b8d-516f-aca4-4fe02f6d838f"
+
+[weakdeps]
+Catalyst = "479239e8-5488-4da2-87a7-35f2df7eef83"
 
 [extensions]
 PlasmaSpeciesCatalystExt = "Catalyst"
@@ -16,6 +19,3 @@ Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
 [targets]
 test = ["Catalyst", "Test"]
-
-[weakdeps]
-Catalyst = "479239e8-5488-4da2-87a7-35f2df7eef83"

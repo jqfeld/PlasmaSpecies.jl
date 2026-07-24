@@ -84,6 +84,60 @@ using Test
         @test expanded[2].rate ≈ 2.0e-14
     end
 
+    @testset "isreactive: different LHS and RHS" begin
+        @test isreactive(PlasmaReaction(1.0, ReactionFormula("N2 + e --> N2[+] + 2e")))
+        @test isreactive(ReactionFormula("N2 + e --> N2[+] + 2e"))
+    end
+
+    @testset "isreactive: identical LHS and RHS" begin
+        @test !isreactive(PlasmaReaction(1.0, ReactionFormula("N2 + e --> e + N2")))
+        @test !isreactive(ReactionFormula("N2 + e --> e + N2"))
+    end
+
+    @testset "isreactive: same species different stoichiometry" begin
+        sp = Species(gas=DiNitrogen(), energy=1.0)
+        @test isreactive(ReactionFormula([sp], [sp], [1], [2], false))
+    end
+
+    @testset "thermal_source_term: single substrate" begin
+        sp1 = Species(gas=DiNitrogen(), energy=1.0)
+        sp2 = Species(gas=DiNitrogen(), electronic_state=StringElectronicState("A"), energy=4.0)
+        pr = PlasmaReaction(2.0, ReactionFormula([sp1], [sp2], [1], [1], false))
+        f = thermal_source_term(pr)
+        # 2.0 * 3.0^1 * (-3.0) = -18.0
+        @test f(3.0) ≈ -18.0
+    end
+
+    @testset "thermal_source_term: stoichiometry" begin
+        sp1 = Species(gas=DiNitrogen(), energy=1.0)
+        sp2 = Species(gas=DiNitrogen(), electronic_state=StringElectronicState("A"), energy=5.0)
+        # substoich = [2]: rate * n^2 * (-ΔE) = 1.0 * 2.0^2 * (-3.0) = -12.0
+        pr = PlasmaReaction(1.0, ReactionFormula([sp1], [sp2], [2], [1], false))
+        f = thermal_source_term(pr)
+        @test f(2.0) ≈ -12.0
+    end
+
+    @testset "thermal_source_term: multiple substrates" begin
+        sp1 = Species(gas=DiNitrogen(), energy=1.0)
+        sp2 = Species(gas=DiOxygen(), energy=2.0)
+        sp3 = Species(gas=DiNitrogen(), electronic_state=StringElectronicState("A"), energy=5.0)
+        # subs sorted: [sp2(O2), sp1(N2)], ΔE = 5.0 - (1.0 + 2.0) = 2.0
+        # source = 1.0 * n_O2 * n_N2 * (-2.0)
+        pr = PlasmaReaction(1.0, ReactionFormula([sp1, sp2], [sp3], [1, 1], [1], false))
+        f = thermal_source_term(pr)
+        subs = pr.formula.subs
+        n = Dict(string(sp1) => 3.0, string(sp2) => 4.0)
+        ns = [n[string(s)] for s in subs]
+        @test f(ns...) ≈ 1.0 * 3.0 * 4.0 * (-2.0)
+    end
+
+    @testset "thermal_source_term: unknown energy throws" begin
+        sp1 = Species(gas=DiNitrogen())
+        sp2 = Species(gas=DiNitrogen(), electronic_state=StringElectronicState("A"), energy=5.0)
+        pr = PlasmaReaction(1.0, ReactionFormula([sp1], [sp2], [1], [1], false))
+        @test_throws ErrorException thermal_source_term(pr)
+    end
+
     @testset "apply_tree: rate is distributed across branches" begin
         # N2[A,vib=1] is a leaf (substrate, no branching); N2[B] has two leaves (product, branching_factor = 0.5)
         # → 2 expanded reactions each with rate 6.0 * 0.5 = 3.0, sum = 6.0
