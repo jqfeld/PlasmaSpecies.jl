@@ -69,4 +69,25 @@ using Test
             ("e", "N2[B,vib=2]"),
         ])
     end
+
+    @testset "Species tree expansion: vibrational range" begin
+        # vib=0-4 in the reaction should match every vib level 0..4 actually
+        # present under N2[X], not just an opaque "0-4" label — vib=5 must be excluded.
+        tree = SpeciesTree([
+            "N2[X,vib=0]", "N2[X,vib=1]", "N2[X,vib=2]", "N2[X,vib=3]", "N2[X,vib=4]",
+            "N2[X,vib=5]",
+            "N2[A]",
+            "e",
+        ])
+
+        rxn = ReactionFormula("N2[X,vib=0-4] + e --> N2[A] + e")
+        expanded = apply_tree(tree, rxn)
+
+        @test length(expanded) == 5
+        substrate_signatures = Set(Tuple(string.(r.subs)) for (_, r) in expanded)
+        @test substrate_signatures == Set([
+            ("e", "N2[X,vib=$v]") for v in 0:4
+        ])
+        @test all(string.(r.prods) == ["e", "N2[A]"] for (_, r) in expanded)
+    end
 end

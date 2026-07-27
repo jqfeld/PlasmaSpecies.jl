@@ -11,13 +11,15 @@ include("gas.jl")
 export Gas, StringGas, DiNitrogen, Nitrogen, DiOxygen, Oxygen
 
 include("electronic_state.jl")
-export ElectronicState, StringElectronicState
+export ElectronicState, StringElectronicState, TermSymbol
+export label
 
 include("species.jl")
-export gas, charge, electronic_state, vibrational_state, rotational_state, energy, mass
+export gas, charge, electronic_state, vibrational_state, rotational_state, energy, degeneracy, mass
+export QuantumLabel, level_matches, species_matches
 
 include("species_tree.jl")
-export SpeciesTree, leaves, apply_energy!
+export SpeciesTree, leaves, apply_energy!, matching_leaves
 
 include("reactions.jl")
 export ReactionFormula, PlasmaReaction

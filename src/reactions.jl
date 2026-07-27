@@ -39,115 +39,24 @@ function combine_same(sp, stoich)
   return new_sp, new_stoich
 end
 
-function Base.print(io::IO, recipe::ReactionFormula)
-  if length(recipe.subs) > 1
-    reduce(function (x, y)
-        if x[2] > 1
-          print(io, x[2])
-        end
-        show(io, x[1])
-        print(io, '+')
-        if y[2] > 1
-          print(io, y[2])
-        end
-        print(io, y[1])
-      end, zip(recipe.subs, recipe.substoich))
-  else
-    if recipe.substoich[1] > 1
-      print(io, recipe.substoich[1])
-    end
-    print(io, recipe.subs[1])
+function _show_side(io::IO, species, stoich)
+  if stoich[1] > 1
+    show(io, stoich[1])
   end
-
-  if recipe.reverse
-    print(io, "<-->")
-  else
-    print(io, "-->")
-  end
-
-  if length(recipe.prods) > 1
-    reduce(function (x, y)
-        if x[2] > 1
-          print(io, x[2])
-        end
-        print(io, x[1])
-        print(io, '+')
-        if y[2] > 1
-          print(io, y[2])
-        end
-        print(io, y[1])
-      end, zip(recipe.prods, recipe.prodstoich))
-  else
-    if recipe.prodstoich[1] > 1
-      print(io, recipe.prodstoich[1])
+  show(io, species[1])
+  for i in Iterators.drop(eachindex(species), 1)
+    print(io, '+')
+    if stoich[i] > 1
+      show(io, stoich[i])
     end
-    print(io, recipe.prods[1])
+    show(io, species[i])
   end
 end
 
-
 function Base.show(io::IO, recipe::ReactionFormula)
-  if length(recipe.subs) > 1
-
-    if recipe.substoich[1] > 1
-      show(io, recipe.substoich[1])
-    end
-    show(io, recipe.subs[1])
-
-    for i in Iterators.drop(eachindex(recipe.subs), 1)
-      print(io, '+')
-      if recipe.substoich[i] > 1
-        show(io, recipe.substoich[i])
-      end
-      show(io, recipe.subs[i])
-    end
-
-    # reduce(function (x, y)
-    #         if x[2] > 1
-    #             show(io, x[2])
-    #         end
-    #         show(io, x[1])
-    #         print(io, '+')
-    #         if y[2] > 1
-    #             show(io, y[2])
-    #         end
-    #         show(io, y[1])
-    #     end, zip(recipe.subs, recipe.substoich))
-
-  else
-    if recipe.substoich[1] > 1
-      show(io, recipe.substoich[1])
-    end
-    show(io, recipe.subs[1])
-  end
-
-  if recipe.reverse
-    print(io, "<-->")
-  else
-    print(io, "-->")
-  end
-
-  if length(recipe.prods) > 1
-
-    if recipe.prodstoich[1] > 1
-      show(io, recipe.prodstoich[1])
-    end
-    show(io, recipe.prods[1])
-
-    for i in Iterators.drop(eachindex(recipe.prods), 1)
-      print(io, '+')
-      if recipe.prodstoich[i] > 1
-        show(io, recipe.prodstoich[i])
-      end
-      show(io, recipe.prods[i])
-    end
-
-  else
-    if recipe.prodstoich[1] > 1
-      show(io, recipe.prodstoich[1])
-    end
-    show(io, recipe.prods[1])
-  end
+  _show_side(io, recipe.subs, recipe.substoich)
+  print(io, recipe.reverse ? "<-->" : "-->")
+  _show_side(io, recipe.prods, recipe.prodstoich)
 end
 
 function sort_by_species(sp, stoich)
@@ -202,8 +111,8 @@ over all possible products).
 
 """
 function apply_tree(t::SpeciesTree, reaction::ReactionFormula)
-  substrate_vectors = Iterators.product([leaves(t[s]) for s in reaction.subs]...) .|> collect
-  products_vectors = Iterators.product([leaves(t[s]) for s in reaction.prods]...) .|> collect
+  substrate_vectors = Iterators.product([matching_leaves(t, s) for s in reaction.subs]...) .|> collect
+  products_vectors = Iterators.product([matching_leaves(t, s) for s in reaction.prods]...) .|> collect
   branching_factor = 1 / length(products_vectors)
   [(branching_factor, ReactionFormula(subs, prods, reaction.substoich, reaction.prodstoich, reaction.reverse)) for subs in substrate_vectors for prods in products_vectors]
 end

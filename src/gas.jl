@@ -21,8 +21,7 @@ struct StringGas <: Gas
     name::String
 end
 
-Base.show(io::IO, g::StringGas) = show(io, g.name)
-Base.print(io::IO, g::StringGas) = print(io, g.name)
+Base.show(io::IO, g::StringGas) = print(io, g.name)
 
 Base.isless(a::Gas, b::Gas) = isless(string(a), string(b))
 

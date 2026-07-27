@@ -7,7 +7,6 @@ Registered label: `O`
 """
 struct Oxygen <: Gas end
 Base.show(io::IO, ::Oxygen) = print(io,"O")
-Base.print(io::IO, ::Oxygen) = print(io, "O")
 mass(::Oxygen) = 16*1.67e-27 # kg
 
 """

@@ -14,15 +14,54 @@
 - `electronic_state=nothing`: Optional, label for the electronic state.
 - `vibrational_state=nothing`: Optional, label for the vibrational state. If defined, `electronic_state` cannot be `nothing`.
 - `rotational_state=nothing`: Optional, label for the rotational state. If defined, `vibrational_state` cannot be `nothing`.
+- `degeneracy=nothing`: Optional, statistical weight (degeneracy) of this state.
 
 """
-Base.@kwdef mutable struct Species{S,C<:Charge,E,V,J,En}
+Base.@kwdef struct Species{S,C<:Charge,E,V,J,En,D}
   gas::S
   charge::C = Neutral()
   electronic_state::E = nothing
   vibrational_state::V = nothing
   rotational_state::J = nothing
   energy::En = nothing
+  degeneracy::D = nothing
+end
+
+"""
+    QuantumLabel
+
+The closed set of forms `vibrational_state`/`rotational_state` can take: a single
+quantum number (`Int`), several quantum numbers (`Tuple`/`NamedTuple`, e.g. normal
+modes of a polyatomic), a contiguous range of levels lumped together for reaction
+purposes (`UnitRange{Int}`, see [`level_matches`](@ref)/[`matching_leaves`](@ref)),
+or an opaque hand-picked label (`Symbol`) with no containment semantics.
+"""
+const QuantumLabel = Union{Int,NTuple{N,Int} where N,NamedTuple,UnitRange{Int},Symbol}
+
+parse_quantum_label(::Nothing) = nothing
+function parse_quantum_label(s::AbstractString)
+  i = tryparse(Int, s)
+  isnothing(i) || return i
+
+  m = match(r"^(\d+)-(\d+)$", s)
+  isnothing(m) || return UnitRange(parse(Int, m[1]), parse(Int, m[2]))
+
+  if startswith(s, "(") && endswith(s, ")")
+    parts = strip.(split(s[2:end-1], ","))
+    if !isempty(parts) && all(p -> occursin("=", p), parts)
+      pairs = map(parts) do p
+        k, v = split(p, "=")
+        Symbol(strip(k)) => parse(Int, strip(v))
+      end
+      return (; pairs...)
+    end
+    ints = tryparse.(Int, parts)
+    if !isempty(ints) && all(!isnothing, ints)
+      return Tuple(ints)
+    end
+  end
+
+  return Symbol(s)
 end
 
 
@@ -56,11 +95,11 @@ function Species(str::String)
     gas = Gas(m[1]),
     charge = m[1] == "e" ? Negative(1) : Charge(m[2]),
     electronic_state = ElectronicState(m[3]),
-    vibrational_state = m[4],
-    rotational_state = m[5])
+    vibrational_state = parse_quantum_label(m[4]),
+    rotational_state = parse_quantum_label(m[5]))
     # m[4:end]...)
 end
-Species(gas::G) where {G<:Gas} = Species(gas, Neutral(), nothing, nothing, nothing, nothing)
+Species(gas::G) where {G<:Gas} = Species(gas, Neutral(), nothing, nothing, nothing, nothing, nothing)
 
 
 gas(sp::Species) = sp.gas
@@ -69,6 +108,7 @@ electronic_state(sp::Species) = sp.electronic_state
 vibrational_state(sp::Species) = sp.vibrational_state
 rotational_state(sp::Species) = sp.rotational_state
 energy(sp::Species) = sp.energy
+degeneracy(sp::Species) = sp.degeneracy
 mass(sp::Species) = gas(sp) isa Electron ? mass(gas(sp)) : mass(gas(sp)) - to_value(charge(sp)) * mass(Electron())
 
 function get_parent_species(sp::Species)
@@ -79,6 +119,7 @@ function get_parent_species(sp::Species)
       electronic_state(sp),
       vibrational_state(sp),
       nothing,
+      nothing,
       nothing
     )
   elseif !isnothing(vibrational_state(sp))
@@ -86,6 +127,7 @@ function get_parent_species(sp::Species)
       gas(sp),
       charge(sp),
       electronic_state(sp),
+      nothing,
       nothing,
       nothing,
       nothing
@@ -97,6 +139,7 @@ function get_parent_species(sp::Species)
       nothing,
       nothing,
       nothing,
+      nothing,
       nothing
     )
   else
@@ -104,10 +147,42 @@ function get_parent_species(sp::Species)
   end
 end
 
+"""
+    level_matches(formula_value, candidate_value) -> Bool
+
+Whether a single field (electronic/vibrational/rotational state) of a formula
+`Species` matches a concrete candidate value. `nothing` on the formula side is a
+wildcard (matches anything, as used by [`is_parent_species`](@ref) for hierarchy
+matching); a `UnitRange{Int}` on the formula side matches any `Int` it contains
+(used by [`matching_leaves`](@ref) to expand reactions written over a range of
+vibrational levels); everything else falls back to exact equality — including
+`Symbol` labels, which are deliberately opaque (no containment).
+"""
+level_matches(::Nothing, _) = true
+level_matches(r::UnitRange{Int}, x::Int) = x in r
+level_matches(a, b) = a == b
+
+"""
+    species_matches(formula::Species, candidate::Species) -> Bool
+
+Whether `candidate` is matched by `formula`: `gas`/`charge` compared exactly,
+electronic/vibrational/rotational state compared via [`level_matches`](@ref)
+(so `nothing`/range fields on `formula` act as wildcards/containment checks).
+Used by [`matching_leaves`](@ref) to expand a reaction formula species — which
+may specify a range of vibrational levels — into every matching leaf of a
+`SpeciesTree`.
+"""
+species_matches(formula::Species, candidate::Species) =
+  gas(formula) == gas(candidate) &&
+  charge(formula) == charge(candidate) &&
+  level_matches(electronic_state(formula), electronic_state(candidate)) &&
+  level_matches(vibrational_state(formula), vibrational_state(candidate)) &&
+  level_matches(rotational_state(formula), rotational_state(candidate))
+
 function is_parent_species(sp::Species, parent::Species)
   if parent != sp && gas(parent) == gas(sp)
-    if isnothing(electronic_state(parent)) || electronic_state(parent) == electronic_state(sp)
-      return isnothing(vibrational_state(parent)) || vibrational_state(parent) == vibrational_state(sp) ? true : false
+    if level_matches(electronic_state(parent), electronic_state(sp))
+      return level_matches(vibrational_state(parent), vibrational_state(sp))
     else
       false
     end
@@ -116,6 +191,18 @@ function is_parent_species(sp::Species, parent::Species)
   end
 end
 
+
+"""
+    format_quantum_label(x) -> String
+
+Inverse of [`parse_quantum_label`](@ref), used by `Base.show(::Species)` so
+`vib=`/`rot=` round-trip through display back to the same parsed value. Only
+needed for `UnitRange`, whose default `string` uses `"a:b"` (`0:4`) rather than
+the `"a-b"` (`0-4`) syntax `parse_quantum_label` accepts; every other
+`QuantumLabel` variant's default `string` is already what the parser expects.
+"""
+format_quantum_label(r::UnitRange{Int}) = "$(first(r))-$(last(r))"
+format_quantum_label(x) = string(x)
 
 function Base.show(io::IO, sp::Species)
   out = string(gas(sp))
@@ -133,18 +220,32 @@ function Base.show(io::IO, sp::Species)
     out *= open_bracket ? "]" : ""
     return Base.print(io, out)
   else
-    out *= ",vib=" * string(vibrational_state(sp))
+    out *= ",vib=" * format_quantum_label(vibrational_state(sp))
   end
   if isnothing(rotational_state(sp))
     out *= open_bracket ? "]" : ""
     return Base.print(io, out)
   else
-    out *= ",rot=" * string(rotational_state(sp)) * "]"
+    out *= ",rot=" * format_quantum_label(rotational_state(sp)) * "]"
   end
   Base.print(io, out)
 end
 
 # Sorting
+
+"""
+    _quantum_label_isless(a, b)
+
+Order two `QuantumLabel` values. Uses `isless` directly where Base defines it
+(`Int`, `Tuple`, `Symbol`); falls back to comparing `string(a)`/`string(b)` for
+pairs without a natural order (mixed types, `NamedTuple`) so `Species` sorting
+stays total and never throws.
+"""
+function _quantum_label_isless(a, b)
+  applicable(isless, a, b) && return isless(a, b)
+  return isless(string(a), string(b))
+end
+
 Base.isless(::Negative, ::Charge) = false
 
 Base.isless(::Positive, ::Negative) = true
@@ -188,7 +289,7 @@ function Base.isless(a::Species, b::Species)
     if isnothing(vibrational_state(b))
       return true
     end
-    return isless(parse(Int, vibrational_state(a)), parse(Int, vibrational_state(b)))
+    return _quantum_label_isless(vibrational_state(a), vibrational_state(b))
   end
 
   if rotational_state(a) != rotational_state(b)
@@ -198,6 +299,6 @@ function Base.isless(a::Species, b::Species)
     if isnothing(rotational_state(b))
       return true
     end
-    return isless(parse(Int, rotational_state(a)), parse(Int, rotational_state(b)))
+    return _quantum_label_isless(rotational_state(a), rotational_state(b))
   end
 end

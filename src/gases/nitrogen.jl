@@ -7,7 +7,6 @@ Registered label: `N`
 """
 struct Nitrogen <: Gas end
 Base.show(io::IO, ::Nitrogen) = print(io,"N")
-Base.print(io::IO, ::Nitrogen) = print(io, "N")
 mass(::Nitrogen) = 14*1.67e-27 # kg
 
 """
@@ -18,6 +17,8 @@ Registered label: `N2`
 
 """
 struct DiNitrogen <: Gas end
+# show uses a Unicode subscript for pretty REPL display; print stays plain ASCII
+# since it's what LoKI-B string round-tripping (Species(str)/string(sp)) relies on.
 Base.show(io::IO, ::DiNitrogen) = print(io,"N₂")
 Base.print(io::IO, ::DiNitrogen) = print(io,"N2")
 mass(::DiNitrogen) = mass(Nitrogen())*2 # kg

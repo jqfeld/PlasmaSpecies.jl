@@ -18,6 +18,7 @@ using Test
             "1",
             nothing,
             nothing,
+            nothing,
         )
         @test gas(charged) == DiNitrogen()
         @test charge(charged) == Positive(2)
@@ -47,8 +48,8 @@ using Test
         @test gas(parsed) == DiNitrogen()
         @test charge(parsed) == Positive(1)
         @test string(electronic_state(parsed)) == "X"
-        @test vibrational_state(parsed) == "2"
-        @test rotational_state(parsed) == "1"
+        @test vibrational_state(parsed) === 2
+        @test rotational_state(parsed) === 1
 
         electron = Species("e")
         @test gas(electron) == Electron()
@@ -58,6 +59,17 @@ using Test
         @test gas(unknown) isa StringGas
         @test string(gas(unknown)) == "Ar"
         @test charge(unknown) == Positive(1)
+    end
+
+    @testset "Quantum label parsing" begin
+        @test vibrational_state(Species("N2[X,vib=3]")) === 3
+        @test vibrational_state(Species("N2[X,vib=0-4]")) === 0:4
+        @test vibrational_state(Species("N2[X,vib=(1,2)]")) === (1, 2)
+        @test vibrational_state(Species("N2[X,vib=(v1=1,v2=0)]")) === (v1=1, v2=0)
+        @test vibrational_state(Species("N2[X,vib=combined]")) === :combined
+
+        @test rotational_state(Species("N2[X,vib=0,rot=5]")) === 5
+        @test rotational_state(Species("N2[X,vib=0,rot=(1,2)]")) === (1, 2)
     end
 
     @testset "Parent relationships" begin
@@ -76,6 +88,11 @@ using Test
         @test is_parent_species(full, base)
         @test is_parent_species(vib, full)
         @test is_parent_species(full, Species("N2[B]"))
+
+        ranged = Species("N2[+,B,vib=0-4]")
+        @test is_parent_species(vib, ranged)
+        @test !is_parent_species(Species("N2[+,B,vib=5]"), ranged)
+        @test !is_parent_species(Species("N2[+,A,vib=3]"), ranged)
     end
 
     @testset "Equality and ordering" begin
@@ -86,6 +103,11 @@ using Test
 
         states = Species.(["N2[B]", "N2[X]"])
         @test sort(states) == Species.(["N2[B]", "N2[X]"])
+
+        # vibrational_state is now a real Int (not a string needing `parse`), so
+        # comparing species that differ only by vib level must not throw.
+        vibs = Species.(["N2[X,vib=2]", "N2[X,vib=0]", "N2[X,vib=1]"])
+        @test sort(vibs) == Species.(["N2[X,vib=0]", "N2[X,vib=1]", "N2[X,vib=2]"])
     end
 
     @testset "Display" begin
@@ -97,6 +119,10 @@ using Test
 
         bare = Species("N2")
         @test string(bare) == "N2"
+
+        ranged = Species("N2[X,vib=0-4]")
+        @test string(ranged) == "N2[X,vib=0-4]"
+        @test Species(string(ranged)) == ranged
     end
 
     @testset "Mass" begin
