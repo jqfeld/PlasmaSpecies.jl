@@ -78,20 +78,21 @@ leaves(t::SpeciesTree) = Leaves(t) |> collect .|> nodevalue
 """
     matching_leaves(t::SpeciesTree, formula::Species) -> Vector{Species}
 
-Collect every leaf of `t` matched by `formula` (via [`species_matches`](@ref)),
-descending into every branch rather than stopping at the first match like
-`t[formula]`/`Base.getindex` does. Whenever `formula` matches a node — exactly,
-or via a `UnitRange` vibrational/rotational field containing that node's level —
-the whole subtree's leaves are taken and that branch is not searched further;
-otherwise the search continues into the node's children. This is what lets a
-reaction formula species written with a vibrational range (e.g. `vib=0-4`)
-expand, in [`apply_tree`](@ref), to every matching level actually present in
-the tree, even when those levels are separate sibling nodes.
+Collect every leaf of `t` matched by `formula` (via `nodevalue(c) in formula`,
+see [`Base.in`](@ref)/[`species_matches`](@ref)), descending into every branch
+rather than stopping at the first match like `t[formula]`/`Base.getindex`
+does. Whenever `formula` matches a node — exactly, or via a `UnitRange`
+vibrational/rotational field containing that node's level — the whole
+subtree's leaves are taken and that branch is not searched further; otherwise
+the search continues into the node's children. This is what lets a reaction
+formula species written with a vibrational range (e.g. `vib=0-4`) expand, in
+[`apply_tree`](@ref), to every matching level actually present in the tree,
+even when those levels are separate sibling nodes.
 """
 function matching_leaves(t::SpeciesTree, formula::Species)
   result = Species[]
   for c in children(t)
-    if species_matches(formula, nodevalue(c))
+    if nodevalue(c) in formula
       append!(result, leaves(c))
     else
       append!(result, matching_leaves(c, formula))

@@ -95,6 +95,34 @@ using Test
         @test !is_parent_species(Species("N2[+,A,vib=3]"), ranged)
     end
 
+    @testset "Base.in" begin
+        full   = Species("N2[+,B,vib=3,rot=5]")
+        vib    = Species("N2[+,B,vib=3]")
+        elec   = Species("N2[+,B]")
+        base   = Species("N2[+]")
+        ranged = Species("N2[+,B,vib=0-4]")
+
+        # reflexive, unlike is_parent_species
+        @test full in full
+        @test !is_parent_species(full, full)
+
+        # nothing fields on the right-hand side are wildcards
+        @test full in vib
+        @test full in elec
+        @test full in base
+        @test vib in elec
+
+        # a mismatched concrete field is not a wildcard
+        @test !(full in Species("N2[+,B,vib=2,rot=5]"))
+        @test !(full in Species("N2[+,A]"))
+
+        # range containment, and rotational_state actually checked (unlike is_parent_species)
+        @test vib in ranged
+        @test !(Species("N2[+,B,vib=5]") in ranged)
+        @test full in Species("N2[+,B,vib=3,rot=5]")
+        @test !(Species("N2[+,B,vib=3,rot=6]") in Species("N2[+,B,vib=3,rot=5]"))
+    end
+
     @testset "Equality and ordering" begin
         @test Species("N2[X,vib=1]") == Species("N2[ X , vib=1]")
 

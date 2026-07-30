@@ -179,6 +179,19 @@ species_matches(formula::Species, candidate::Species) =
   level_matches(vibrational_state(formula), vibrational_state(candidate)) &&
   level_matches(rotational_state(formula), rotational_state(candidate))
 
+"""
+    candidate::Species in formula::Species -> Bool
+
+Whether `candidate` is matched by `formula` — an alias for
+[`species_matches`](@ref)`(formula, candidate)`, exposed via `∈`/`in` to mirror
+`SpectraUtils`'s `Base.in(child::State, parent::State)` (e.g. `s in
+boltzmann.parent`). `nothing`/range fields on `formula` act as wildcards/
+containment checks, same as `species_matches`; reflexive (`sp in sp` is
+`true`), unlike [`is_parent_species`](@ref) which is a strict-ancestor check
+and doesn't compare `rotational_state`.
+"""
+Base.in(candidate::Species, formula::Species) = species_matches(formula, candidate)
+
 function is_parent_species(sp::Species, parent::Species)
   if parent != sp && gas(parent) == gas(sp)
     if level_matches(electronic_state(parent), electronic_state(sp))
