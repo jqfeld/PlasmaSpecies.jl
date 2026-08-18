@@ -17,7 +17,7 @@
 - `degeneracy=nothing`: Optional, statistical weight (degeneracy) of this state.
 
 """
-Base.@kwdef struct Species{S,C<:Charge,E,V,J,En,D}
+Base.@kwdef struct Species{S,C<:Charge,E,V,J,En,D,MD}
   gas::S
   charge::C = Neutral()
   electronic_state::E = nothing
@@ -25,6 +25,7 @@ Base.@kwdef struct Species{S,C<:Charge,E,V,J,En,D}
   rotational_state::J = nothing
   energy::En = nothing
   degeneracy::D = nothing
+  metadata::MD = nothing
 end
 
 """
@@ -87,19 +88,19 @@ Convenience constructor for the `Species` struct.
 It parses a string of the format defined by the [LoKI-B](https://github.com/IST-Lisbon/LoKI) 
 Boltzmann solver and automatically fills in the fields of `Species`.
 """
-function Species(str::String)
+function Species(str::String; metadata=nothing)
   str = join(map(x -> isspace(str[x]) ? "" : str[x], 1:length(str)))
   regex = r"(^(?:\w|\d)*)(?:\[([+\-]+)?,?([^,\]]+)?(?:,vib=(\([^\)]*\)|[^,\]]*)(?:,rot=(\([^\)]*\)|[^,\]]*))?)?\])?"
   m = collect(match(regex, str))
-  Species(
+  Species(;
     gas = Gas(m[1]),
     charge = m[1] == "e" ? Negative(1) : Charge(m[2]),
     electronic_state = ElectronicState(m[3]),
     vibrational_state = parse_quantum_label(m[4]),
-    rotational_state = parse_quantum_label(m[5]))
-    # m[4:end]...)
+    rotational_state = parse_quantum_label(m[5]),
+    metadata)
 end
-Species(gas::G) where {G<:Gas} = Species(gas, Neutral(), nothing, nothing, nothing, nothing, nothing)
+Species(gas::G) where {G<:Gas} = Species(gas=gas)
 
 
 gas(sp::Species) = sp.gas
@@ -109,38 +110,27 @@ vibrational_state(sp::Species) = sp.vibrational_state
 rotational_state(sp::Species) = sp.rotational_state
 energy(sp::Species) = sp.energy
 degeneracy(sp::Species) = sp.degeneracy
+metadata(sp::Species) = sp.metadata
 mass(sp::Species) = gas(sp) isa Electron ? mass(gas(sp)) : mass(gas(sp)) - to_value(charge(sp)) * mass(Electron())
 
 function get_parent_species(sp::Species)
   if !isnothing(rotational_state(sp))
-    return Species(
-      gas(sp),
-      charge(sp),
-      electronic_state(sp),
-      vibrational_state(sp),
-      nothing,
-      nothing,
-      nothing
+    return Species(;
+      gas = gas(sp),
+      charge = charge(sp),
+      electronic_state = electronic_state(sp),
+      vibrational_state = vibrational_state(sp),
     )
   elseif !isnothing(vibrational_state(sp))
     return Species(
-      gas(sp),
-      charge(sp),
-      electronic_state(sp),
-      nothing,
-      nothing,
-      nothing,
-      nothing
+      gas = gas(sp),
+      charge = charge(sp),
+      electronic_state = electronic_state(sp),
     )
   elseif !isnothing(electronic_state(sp))
     return Species(
-      gas(sp),
-      charge(sp),
-      nothing,
-      nothing,
-      nothing,
-      nothing,
-      nothing
+      gas = gas(sp),
+      charge = charge(sp),
     )
   else
     return nothing
