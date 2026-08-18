@@ -80,6 +80,28 @@ Base.:(==)(x::S1, y::S2) where {S1<:Species, S2<:Species} =
   vibrational_state(x) == vibrational_state(y) &&
   rotational_state(x) == rotational_state(y)
 
+# Must mirror `==` exactly (same field set, deliberately excluding
+# `energy`/`degeneracy`/`metadata`): Julia's `Dict`/`Set` require
+# `a == b` to imply `hash(a) == hash(b)`. Without this, the default
+# struct-derived `hash` (which *does* include every field) disagrees with
+# the custom `==` above the moment two otherwise-identical species differ
+# only in `metadata` (or `energy`/`degeneracy`) -- confirmed directly to
+# silently break `Dict{Species,V}` lookups (`d[s1]=...; d[s2]` missing
+# even though `s1 == s2`), exactly the mechanism
+# `PlasmaFluidSim.compile_reactions`'s `species_index` Dict depends on
+# staying correct. `0x5ea3c1e5` is just a fixed salt distinguishing this
+# hash from an unrelated type that happened to hash its own fields the
+# same way; any constant works.
+const _SPECIES_HASH_SALT = UInt === UInt64 ? 0x5ea3c1e5b7d4a291 : 0x5ea3c1e5
+function Base.hash(x::Species, h::UInt)
+  h = hash(gas(x), h)
+  h = hash(charge(x), h)
+  h = hash(electronic_state(x), h)
+  h = hash(vibrational_state(x), h)
+  h = hash(rotational_state(x), h)
+  return hash(_SPECIES_HASH_SALT, h)
+end
+
 
 """
     Species(str::String)
