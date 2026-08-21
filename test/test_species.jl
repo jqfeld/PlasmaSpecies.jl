@@ -96,7 +96,9 @@ using Test
         @test is_parent_species(full, elec)
         @test is_parent_species(full, base)
         @test is_parent_species(vib, full)
-        @test is_parent_species(full, Species("N2[B]"))
+        # A different charge state is a different ladder: get_parent_species
+        # carries the charge, so neutral N2[B] is not above the ion.
+        @test !is_parent_species(full, Species("N2[B]"))
 
         ranged = Species("N2[+,B,vib=0-4]")
         @test is_parent_species(vib, ranged)
@@ -175,5 +177,49 @@ using Test
         @test mass(positive) ≈ m_n2 - me atol=eps(m_n2)
         @test mass(negative) ≈ m_n2 + me atol=eps(m_n2)
         @test mass(electron) == me
+    end
+end
+
+@testset "field preservation and invariants" begin
+    # Rebuilding a species must carry every field it was not asked to change.
+    sp = Species(gas = Gas("N2"), electronic_state = StringElectronicState("B"),
+                 vibrational_state = 3, degeneracy = 7, metadata = (transport = :data,))
+    moved = with_fields(sp, energy = 1.0)
+    @test energy(moved) == 1.0
+    @test degeneracy(moved) == 7
+    @test metadata(moved) == (transport = :data,)
+    @test moved == sp   # identity fields untouched
+
+    tree = SpeciesTree(sp)
+    apply_energy!(tree, _ -> 2.5)
+    leaf = leaves(tree)[1]
+    @test energy(leaf) == 2.5
+    @test degeneracy(leaf) == 7
+    @test metadata(leaf) == (transport = :data,)
+
+    # An electron is singly negative however it is built.
+    @test charge(Species("e")) == Negative(1)
+    @test charge(Species(Gas("e"))) == Negative(1)
+    @test charge(Species(gas = Gas("e"))) == Negative(1)
+    @test charge(Species(gas = Gas("e"), charge = Neutral())) == Negative(1)
+    @test Species("e") == Species(Gas("e")) == Species(gas = Gas("e"))
+    @test isnegative(Species(Gas("e")))
+end
+
+@testset "is_parent_species compares charge" begin
+    @test !is_parent_species(Species("N2[B,vib=1]"), Species("N2[+,B]"))
+    @test !is_parent_species(Species("N2[+,B,vib=1]"), Species("N2[B]"))
+    @test is_parent_species(Species("N2[B,vib=1]"), Species("N2[B]"))
+    @test is_parent_species(Species("N2[+,B,vib=1]"), Species("N2[+,B]"))
+end
+
+@testset "malformed species strings are rejected" begin
+    for s in ("N2[+", "N2[+,B", "N2]", "N2[[+]]", "N2[+]junk", "N2[+] trailing")
+        @test_throws ErrorException Species(s)
+    end
+    # Well-formed strings are unaffected.
+    for s in ("e", "N2", "N2[+]", "N2[+,B,vib=3,rot=1]", "O2[X,vib=0]",
+              "CO2[X,vib=(1,0,0)]", "Ar[++]", "16O-1H[+]", "N2[X,vib=0-4]")
+        @test Species(string(Species(s))) == Species(s)
     end
 end

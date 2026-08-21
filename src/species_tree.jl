@@ -66,8 +66,12 @@ end
 Base.getindex(t::SpeciesTree, s::String) = t[Species(s)]
 
 function Base.setindex!(t::SpeciesTree, tn::SpeciesTree, s::Species)
-    t[s].x = tn[s].x
-    t[s].children = tn[s].children
+    target = t[s]
+    isnothing(target) && throw(KeyError(s))
+    source = tn[s]
+    isnothing(source) && throw(KeyError(s))
+    target.x = source.x
+    target.children = source.children
     return t
 end
 
@@ -106,12 +110,8 @@ end
 function apply_energy!(tr, energy)
     for l in AbstractTrees.Leaves(tr)
         species = l.x
-        new_species = Species(
-            gas = species.gas,
-            charge = species.charge,
-            electronic_state = species.electronic_state,
-            vibrational_state = species.vibrational_state,
-            rotational_state = species.rotational_state,
+        l.x = with_fields(
+            species,
             energy = energy(
                 (
                     elec = electronic_state(species),
@@ -120,7 +120,6 @@ function apply_energy!(tr, energy)
                 )
             )
         )
-        l.x = new_species
     end
     return tr
 end

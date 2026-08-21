@@ -95,9 +95,13 @@ turned into Catalyst reactions that can be added to a modeling toolkit:
 julia> using Catalyst
 
 julia> to_catalyst(tree, (1.0, reaction))
-1-element Vector{Reaction}:  
- Reaction(1.0, t, [e(t), N₂(t)], [2e(t), N₂⁺(t)])
+1-element Vector{Reaction}:
+ 1.0, e + N2 --> 2*e + var"N2[+]"
 ```
+
+Catalyst variables are named after the species string, so anything carrying a
+charge or a state label becomes a `var"..."` identifier (`var"N2[+]"`,
+`var"N2[X,vib=1]"`).
 
 ## Project status
 

@@ -91,3 +91,51 @@ using Test
         @test all(string.(r.prods) == ["e", "N2[A]"] for (_, r) in expanded)
     end
 end
+
+@testset "arrow forms" begin
+    fwd = ReactionFormula("e + N2 --> 2e + N2[+]")
+    rev = ReactionFormula("e + N2 <--> 2e + N2[+]")
+    back = ReactionFormula("2e + N2[+] <-- e + N2")
+
+    @test string.(fwd.subs) == ["e", "N2"]
+    @test string.(fwd.prods) == ["e", "N2[+]"]
+    @test !fwd.reverse
+
+    # The reversible arrow must not leave a stray '<' on the left-hand side.
+    @test string.(rev.subs) == ["e", "N2"]
+    @test rev.reverse
+
+    @test string.(back.subs) == ["e", "N2"]
+    @test string.(back.prods) == ["e", "N2[+]"]
+    @test !back.reverse
+end
+
+@testset "apply_tree robustness" begin
+    tree = SpeciesTree(["N2[X,vib=0]", "N2[X,vib=1]", "N2[X,vib=2]", "e"])
+
+    # A species missing from the tree drops the reaction, with a warning rather
+    # than an empty result nobody notices.
+    @test_logs (:warn,) match_mode = :any begin
+        @test isempty(apply_tree(tree, ReactionFormula("e + Ar --> e + Ar[+]")))
+    end
+
+    # Branching factors over the products of one substrate combination sum to 1.
+    expanded = apply_tree(tree, ReactionFormula("N2[X,vib=0] --> N2[X]"))
+    @test length(expanded) == 3
+    @test sum(first.(expanded)) ≈ 1.0
+
+    # A callable rate is scaled, not multiplied.
+    callable = PlasmaReaction(Te -> 1.0e-15 * Te, ReactionFormula("N2[X,vib=0] --> N2[X]"))
+    scaled = apply_tree(tree, callable)
+    @test length(scaled) == 3
+    @test scaled[1].rate(2.0) ≈ 1.0e-15 * 2.0 / 3
+
+    numeric = PlasmaReaction(1.0e-15, ReactionFormula("N2[X,vib=0] --> N2[X]"))
+    @test apply_tree(tree, numeric)[1].rate ≈ 1.0e-15 / 3
+end
+
+@testset "tree indexing errors" begin
+    tree = SpeciesTree(["N2[X,vib=0]", "e"])
+    @test tree[Species("Ar")] === nothing
+    @test_throws KeyError tree[Species("Ar")] = SpeciesTree("Ar")
+end

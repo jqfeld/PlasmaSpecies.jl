@@ -68,7 +68,9 @@ function parse_reaction(str)
   str = replace(str, r"\s" => "")
   dir = match(r"(-->|<-->|<--)", str)[1]
   reverse_reaction = dir == "<-->"
-  lhs, rhs = dir == "<--" ? split(str, "<--")[end:-1:1] : split(str, "-->")
+  # Split on the arrow that actually matched, so "<-->" does not leave a stray
+  # '<' on the left-hand side.
+  lhs, rhs = dir == "<--" ? split(str, dir)[end:-1:1] : split(str, dir)
   substrates_str = split(lhs, r"(?<!\[|,)\+(?!,|\]|\s\]|\s,)")
   products_str = split(rhs, r"(?<!\[|,)\+(?!,|\]|\s\]|\s,)")
   substoich = get_stoich.(substrates_str)
@@ -111,8 +113,20 @@ over all possible products).
 
 """
 function apply_tree(t::SpeciesTree, reaction::ReactionFormula)
-  substrate_vectors = Iterators.product([matching_leaves(t, s) for s in reaction.subs]...) .|> collect
-  products_vectors = Iterators.product([matching_leaves(t, s) for s in reaction.prods]...) .|> collect
+  sub_leaves = [matching_leaves(t, s) for s in reaction.subs]
+  prod_leaves = [matching_leaves(t, s) for s in reaction.prods]
+
+  # A species with no match expands to nothing, which would drop the reaction
+  # from the chemistry without a trace.
+  missing_species = [s for (s, l) in zip([reaction.subs; reaction.prods],
+                                         [sub_leaves; prod_leaves]) if isempty(l)]
+  if !isempty(missing_species)
+    @warn "Dropping reaction: species not found in tree" reaction missing_species
+    return Tuple{Float64,ReactionFormula}[]
+  end
+
+  substrate_vectors = Iterators.product(sub_leaves...) .|> collect
+  products_vectors = Iterators.product(prod_leaves...) .|> collect
   branching_factor = 1 / length(products_vectors)
   [(branching_factor, ReactionFormula(subs, prods, reaction.substoich, reaction.prodstoich, reaction.reverse)) for subs in substrate_vectors for prods in products_vectors]
 end
@@ -143,8 +157,18 @@ end
 
 isreactive(r::PlasmaReaction) = isreactive(r.formula)
 
+"""
+    scale_rate(rate, factor)
+
+Scale a reaction rate by a branching factor. A number scales directly; anything
+else is treated as callable and wrapped, so rate coefficients that depend on
+temperature or reduced field survive [`apply_tree`](@ref).
+"""
+scale_rate(rate::Number, factor) = rate * factor
+scale_rate(rate, factor) = (args...) -> rate(args...) * factor
+
 function apply_tree(t::SpeciesTree, pr::PlasmaReaction)
-  [PlasmaReaction(pr.rate * branching_factor, formula) for (branching_factor, formula) in apply_tree(t, pr.formula)]
+  [PlasmaReaction(scale_rate(pr.rate, branching_factor), formula) for (branching_factor, formula) in apply_tree(t, pr.formula)]
 end
 
 function apply_tree(t::SpeciesTree, prs::PlasmaReaction...)

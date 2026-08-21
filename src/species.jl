@@ -16,17 +16,46 @@
 - `rotational_state=nothing`: Optional, label for the rotational state. If defined, `vibrational_state` cannot be `nothing`.
 - `degeneracy=nothing`: Optional, statistical weight (degeneracy) of this state.
 
+An [`Electron`](@ref) gas always carries `Negative(1)`; any charge given for one
+is normalised to that.
 """
-Base.@kwdef struct Species{S,C<:Charge,E,V,J,En,D,MD}
+struct Species{S,C<:Charge,E,V,J,En,D,MD}
   gas::S
-  charge::C = Neutral()
-  electronic_state::E = nothing
-  vibrational_state::V = nothing
-  rotational_state::J = nothing
-  energy::En = nothing
-  degeneracy::D = nothing
-  metadata::MD = nothing
+  charge::C
+  electronic_state::E
+  vibrational_state::V
+  rotational_state::J
+  energy::En
+  degeneracy::D
+  metadata::MD
 end
+
+function Species(;
+  gas,
+  charge = Neutral(),
+  electronic_state = nothing,
+  vibrational_state = nothing,
+  rotational_state = nothing,
+  energy = nothing,
+  degeneracy = nothing,
+  metadata = nothing,
+)
+  gas isa Electron && (charge = Negative(1))
+  return Species(gas, charge, electronic_state, vibrational_state,
+                 rotational_state, energy, degeneracy, metadata)
+end
+
+"""
+    with_fields(sp::Species; kwargs...) -> Species
+
+Copy `sp`, replacing only the fields named in `kwargs`. Everything else —
+`energy`, `degeneracy` and the opaque `metadata` payload downstream packages
+attach — is carried over.
+"""
+with_fields(sp::Species; kwargs...) = Species(;
+  NamedTuple{fieldnames(Species)}(ntuple(i -> getfield(sp, i), nfields(sp)))...,
+  kwargs...,
+)
 
 """
     QuantumLabel
@@ -106,19 +135,27 @@ end
 """
     Species(str::String)
 
-Convenience constructor for the `Species` struct. 
-It parses a string of the format defined by the [LoKI-B](https://github.com/IST-Lisbon/LoKI) 
+Convenience constructor for the `Species` struct.
+It parses a string of the format defined by the [LoKI-B](https://github.com/IST-Lisbon/LoKI)
 Boltzmann solver and automatically fills in the fields of `Species`.
+
+Throws on a string the format does not cover, rather than parsing the part it
+recognises and discarding the rest: `"N2[+"` is a typo, not a neutral N₂.
 """
 function Species(str::String; metadata=nothing)
   str = join(map(x -> isspace(str[x]) ? "" : str[x], 1:length(str)))
   # The gas group accepts '-' so ExoMol-style isotope slugs ("16O-1H",
   # "12C-16O2") stay a single token instead of being cut at the first dash.
-  regex = r"(^[A-Za-z0-9\-]*)(?:\[([+\-]+)?,?([^,\]]+)?(?:,vib=(\([^\)]*\)|[^,\]]*)(?:,rot=(\([^\)]*\)|[^,\]]*))?)?\])?"
-  m = collect(match(regex, str))
+  # Anchored at both ends so trailing or malformed text is an error.
+  regex = r"(^[A-Za-z0-9\-]*)(?:\[([+\-]+)?,?([^,\]]+)?(?:,vib=(\([^\)]*\)|[^,\]]*)(?:,rot=(\([^\)]*\)|[^,\]]*))?)?\])?$"
+  matched = match(regex, str)
+  isnothing(matched) && error(
+    """Cannot parse species string $(repr(str)). Expected \
+    GAS[(CHARGE,ELECTRONIC_STATE,vib=VSTATE,rot=JSTATE)], e.g. "N2[+,B,vib=3,rot=1]".""")
+  m = collect(matched)
   Species(;
     gas = Gas(m[1]),
-    charge = m[1] == "e" ? Negative(1) : Charge(m[2]),
+    charge = Charge(m[2]),
     electronic_state = ElectronicState(m[3]),
     vibrational_state = parse_quantum_label(m[4]),
     rotational_state = parse_quantum_label(m[5]),
@@ -207,7 +244,7 @@ and doesn't compare `rotational_state`.
 Base.in(candidate::Species, formula::Species) = species_matches(formula, candidate)
 
 function is_parent_species(sp::Species, parent::Species)
-  if parent != sp && gas(parent) == gas(sp)
+  if parent != sp && gas(parent) == gas(sp) && charge(parent) == charge(sp)
     if level_matches(electronic_state(parent), electronic_state(sp))
       return level_matches(vibrational_state(parent), vibrational_state(sp))
     else

@@ -18,7 +18,8 @@ export ElectronicState, StringElectronicState, TermSymbol
 export label
 
 include("species.jl")
-export gas, charge, electronic_state, vibrational_state, rotational_state, energy, degeneracy, mass
+export gas, charge, electronic_state, vibrational_state, rotational_state, energy, degeneracy, metadata, mass
+export with_fields
 export QuantumLabel, level_matches, species_matches
 
 include("species_tree.jl")
@@ -28,7 +29,7 @@ include("reactions.jl")
 export ReactionFormula, PlasmaReaction
 export parse_reaction, @p_str
 export apply_tree
-export reaction_energy, thermal_source_term, isreactive
+export reaction_energy, thermal_source_term, isreactive, scale_rate
 
 
 # CatalystExt definitions
