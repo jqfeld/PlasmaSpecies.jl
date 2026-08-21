@@ -35,7 +35,7 @@ function Charge(s::AbstractString)
 end
 
 # `print`/`string` fall back to `show` automatically (no separate `print` needed
-# unless a type wants a different plain-vs-pretty form — see DiNitrogen etc.)
+# unless a type wants a different plain-vs-pretty form — see Molecule etc.)
 Base.show(io::IO, c::Positive) = print(io, '+'^c.value)
 Base.show(io::IO, c::Negative) = print(io, '-'^c.value)
 Base.show(io::IO, ::Neutral) = print(io, "")

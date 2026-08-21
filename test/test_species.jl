@@ -4,15 +4,15 @@ using Test
 
 @testset "Species" begin
     @testset "Constructors" begin
-        neutral = Species(DiNitrogen())
-        @test gas(neutral) == DiNitrogen()
+        neutral = Species(Gas("N2"))
+        @test gas(neutral) == Gas("N2")
         @test charge(neutral) isa Neutral
         @test isnothing(electronic_state(neutral))
         @test isnothing(vibrational_state(neutral))
         @test isnothing(rotational_state(neutral))
 
         charged = Species(
-            DiNitrogen(),
+            Gas("N2"),
             Positive(2),
             StringElectronicState("B"),
             "1",
@@ -21,7 +21,7 @@ using Test
             nothing,
             nothing
         )
-        @test gas(charged) == DiNitrogen()
+        @test gas(charged) == Gas("N2")
         @test charge(charged) == Positive(2)
         @test string(electronic_state(charged)) == "B"
         @test vibrational_state(charged) == "1"
@@ -29,15 +29,15 @@ using Test
     end
 
     @testset "Keyword constructor" begin
-        sp = Species(gas=DiNitrogen())
-        @test gas(sp) == DiNitrogen()
+        sp = Species(gas=Gas("N2"))
+        @test gas(sp) == Gas("N2")
         @test charge(sp) isa Neutral
         @test isnothing(electronic_state(sp))
         @test isnothing(vibrational_state(sp))
         @test isnothing(rotational_state(sp))
 
-        sp2 = Species(gas=DiNitrogen(), charge=Positive(1), electronic_state=StringElectronicState("B"), vibrational_state="3")
-        @test gas(sp2) == DiNitrogen()
+        sp2 = Species(gas=Gas("N2"), charge=Positive(1), electronic_state=StringElectronicState("B"), vibrational_state="3")
+        @test gas(sp2) == Gas("N2")
         @test charge(sp2) == Positive(1)
         @test string(electronic_state(sp2)) == "B"
         @test vibrational_state(sp2) == "3"
@@ -46,7 +46,7 @@ using Test
 
     @testset "String parsing" begin
         parsed = Species(" N2[+, X, vib=2, rot=1] ")
-        @test gas(parsed) == DiNitrogen()
+        @test gas(parsed) == Gas("N2")
         @test charge(parsed) == Positive(1)
         @test string(electronic_state(parsed)) == "X"
         @test vibrational_state(parsed) === 2
@@ -56,10 +56,18 @@ using Test
         @test gas(electron) == Electron()
         @test charge(electron) == Negative(1)
 
-        unknown = Species("Ar[+]")
+        # Argon resolves from its formula, so it is an ordinary gas with a mass.
+        argon = Species("Ar[+]")
+        @test gas(argon) isa Molecule
+        @test string(gas(argon)) == "Ar"
+        @test charge(argon) == Positive(1)
+        @test isfinite(mass(argon))
+
+        unknown = Species("Xx[+]")
         @test gas(unknown) isa StringGas
-        @test string(gas(unknown)) == "Ar"
+        @test string(gas(unknown)) == "Xx"
         @test charge(unknown) == Positive(1)
+        @test_throws ErrorException mass(unknown)
     end
 
     @testset "Quantum label parsing" begin
@@ -161,7 +169,7 @@ using Test
         electron = Species("e")
 
         me = mass(Electron())
-        m_n2 = mass(DiNitrogen())
+        m_n2 = mass(Gas("N2"))
 
         @test mass(neutral) == m_n2
         @test mass(positive) ≈ m_n2 - me atol=eps(m_n2)

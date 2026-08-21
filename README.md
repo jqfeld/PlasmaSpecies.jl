@@ -39,25 +39,54 @@ The optional Catalyst.jl integration is automatically activated once
 julia> using PlasmaSpecies
 
 julia> electron = p"e"
-Species(StringGas("e"), Negative(1), nothing, nothing, nothing)
+e
 
 julia> nitrogen_ion = Species("N2[+,B]")
-Species(Nitrogen(), Positive(1), StringElectronicState("B"), nothing, nothing)
+N2[+,B]
 
 julia> gas(nitrogen_ion), charge(nitrogen_ion)
-(Nitrogen(), Positive(1))
+(N₂, +)
 
 julia> reaction = p"e + N2 --> 2e + N2[+]"
-ReactionFormula(Species[Species(StringGas("e"), Negative(1), nothing, nothing, nothing), Species(Nitrogen(), Neutral(), nothing, nothing, nothing)], Species[Species(StringGas("e"), Negative(1), nothing, nothing, nothing), Species(Nitrogen(), Positive(1), nothing, nothing, nothing)], [1, 1], [2, 1], false)
+e+N2-->2e+N2[+]
 
 julia> reaction.subs, reaction.prods
-(Species[Species(StringGas("e"), Negative(1), nothing, nothing, nothing), Species(Nitrogen(), Neutral(), nothing, nothing, nothing)], Species[Species(StringGas("e"), Negative(1), nothing, nothing, nothing), Species(Nitrogen(), Positive(1), nothing, nothing, nothing)])
+([e, N2], [e, N2[+]])
 
 julia> tree = SpeciesTree([electron, nitrogen_ion])
-SpeciesTree
-└─ Species(StringGas("e"), Negative(1), nothing, nothing, nothing)
-└─ Species(Nitrogen(), Positive(1), StringElectronicState("B"), nothing, nothing)
+nothing
+├─ e
+└─ N2[+]
+   └─ N2[+,B]
 ```
+
+### Gases are compositions
+
+A gas is resolved from its chemical formula, so anything built from known
+nuclides works without being registered first — and knows its own mass:
+
+```julia
+julia> mass(Species("CO2")) / 1.66053906660e-27   # daltons
+44.009
+
+julia> gas(Species("H2O")), gas(Species("SF6"))
+(H₂O, SF₆)
+```
+
+Write a specific isotopologue with ExoMol's `iso_slug` spelling, which lines
+these strings up with `ExoMol.jl`'s `load_isotopologue`:
+
+```julia
+julia> mass(Species("28Si-16O")) / 1.66053906660e-27
+43.97184115422001
+
+julia> gas(Species("16O-1H"))
+¹⁶O¹H
+```
+
+A bare element symbol means natural isotopic abundance (`N2` is 2 × 14.007 u),
+which is what LoKI-B and BOLSIG+ assume for a bulk gas. Labels that are not
+resolvable formulas still parse and round-trip — they just have no mass.
 
 If [Catalyst.jl](https://catalyst.sciml.ai/stable/) is loaded, reactions can be
 turned into Catalyst reactions that can be added to a modeling toolkit:

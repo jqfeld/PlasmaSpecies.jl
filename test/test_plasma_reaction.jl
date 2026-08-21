@@ -47,27 +47,27 @@ using Test
     end
 
     @testset "energy: known energies" begin
-        sp1 = Species(gas=DiNitrogen(), energy=2.0)
-        sp2 = Species(gas=DiNitrogen(), electronic_state=StringElectronicState("A"), energy=5.0)
+        sp1 = Species(gas=Gas("N2"), energy=2.0)
+        sp2 = Species(gas=Gas("N2"), electronic_state=StringElectronicState("A"), energy=5.0)
         pr = PlasmaReaction(1.0, ReactionFormula([sp1], [sp2], [1], [1], false))
         @test reaction_energy(pr) ≈ 3.0
     end
 
     @testset "energy: stoichiometry" begin
-        sp1 = Species(gas=DiNitrogen(), energy=1.0)
-        sp2 = Species(gas=DiNitrogen(), electronic_state=StringElectronicState("A"), energy=4.0)
+        sp1 = Species(gas=Gas("N2"), energy=1.0)
+        sp2 = Species(gas=Gas("N2"), electronic_state=StringElectronicState("A"), energy=4.0)
         # 2*sp1 --> sp2: energy = 4.0 - 2*1.0 = 2.0
         pr = PlasmaReaction(1.0, ReactionFormula([sp1], [sp2], [2], [1], false))
         @test reaction_energy(pr) ≈ 2.0
     end
 
     @testset "energy: unknown energy returns nothing" begin
-        sp1 = Species(gas=DiNitrogen())
-        sp2 = Species(gas=DiNitrogen(), electronic_state=StringElectronicState("A"), energy=5.0)
+        sp1 = Species(gas=Gas("N2"))
+        sp2 = Species(gas=Gas("N2"), electronic_state=StringElectronicState("A"), energy=5.0)
         pr_unknown_sub = PlasmaReaction(1.0, ReactionFormula([sp1], [sp2], [1], [1], false))
         @test isnothing(reaction_energy(pr_unknown_sub))
 
-        sp3 = Species(gas=DiNitrogen(), energy=2.0)
+        sp3 = Species(gas=Gas("N2"), energy=2.0)
         pr_unknown_prod = PlasmaReaction(1.0, ReactionFormula([sp3], [sp1], [1], [1], false))
         @test isnothing(reaction_energy(pr_unknown_prod))
     end
@@ -95,13 +95,13 @@ using Test
     end
 
     @testset "isreactive: same species different stoichiometry" begin
-        sp = Species(gas=DiNitrogen(), energy=1.0)
+        sp = Species(gas=Gas("N2"), energy=1.0)
         @test isreactive(ReactionFormula([sp], [sp], [1], [2], false))
     end
 
     @testset "thermal_source_term: single substrate" begin
-        sp1 = Species(gas=DiNitrogen(), energy=1.0)
-        sp2 = Species(gas=DiNitrogen(), electronic_state=StringElectronicState("A"), energy=4.0)
+        sp1 = Species(gas=Gas("N2"), energy=1.0)
+        sp2 = Species(gas=Gas("N2"), electronic_state=StringElectronicState("A"), energy=4.0)
         pr = PlasmaReaction(2.0, ReactionFormula([sp1], [sp2], [1], [1], false))
         f = thermal_source_term(pr)
         # 2.0 * 3.0^1 * (-3.0) = -18.0
@@ -109,8 +109,8 @@ using Test
     end
 
     @testset "thermal_source_term: stoichiometry" begin
-        sp1 = Species(gas=DiNitrogen(), energy=1.0)
-        sp2 = Species(gas=DiNitrogen(), electronic_state=StringElectronicState("A"), energy=5.0)
+        sp1 = Species(gas=Gas("N2"), energy=1.0)
+        sp2 = Species(gas=Gas("N2"), electronic_state=StringElectronicState("A"), energy=5.0)
         # substoich = [2]: rate * n^2 * (-ΔE) = 1.0 * 2.0^2 * (-3.0) = -12.0
         pr = PlasmaReaction(1.0, ReactionFormula([sp1], [sp2], [2], [1], false))
         f = thermal_source_term(pr)
@@ -118,9 +118,9 @@ using Test
     end
 
     @testset "thermal_source_term: multiple substrates" begin
-        sp1 = Species(gas=DiNitrogen(), energy=1.0)
-        sp2 = Species(gas=DiOxygen(), energy=2.0)
-        sp3 = Species(gas=DiNitrogen(), electronic_state=StringElectronicState("A"), energy=5.0)
+        sp1 = Species(gas=Gas("N2"), energy=1.0)
+        sp2 = Species(gas=Gas("O2"), energy=2.0)
+        sp3 = Species(gas=Gas("N2"), electronic_state=StringElectronicState("A"), energy=5.0)
         # subs sorted: [sp2(O2), sp1(N2)], ΔE = 5.0 - (1.0 + 2.0) = 2.0
         # source = 1.0 * n_O2 * n_N2 * (-2.0)
         pr = PlasmaReaction(1.0, ReactionFormula([sp1, sp2], [sp3], [1, 1], [1], false))
@@ -132,8 +132,8 @@ using Test
     end
 
     @testset "thermal_source_term: unknown energy throws" begin
-        sp1 = Species(gas=DiNitrogen())
-        sp2 = Species(gas=DiNitrogen(), electronic_state=StringElectronicState("A"), energy=5.0)
+        sp1 = Species(gas=Gas("N2"))
+        sp2 = Species(gas=Gas("N2"), electronic_state=StringElectronicState("A"), energy=5.0)
         pr = PlasmaReaction(1.0, ReactionFormula([sp1], [sp2], [1], [1], false))
         @test_throws ErrorException thermal_source_term(pr)
     end

@@ -9,7 +9,7 @@
 
 ## Fields
 #
-- `gas <: Gas`: Label of the parent gas, e.g. a struct like Nitrogen <: Gas or the general StringGas(str:String).
+- `gas <: Gas`: Parent gas — usually a `Molecule` resolved from its chemical formula (see [`parse_formula`](@ref)), otherwise `Electron()` or the fallback `StringGas(str::String)`.
 - `charge=Neutral()`: Charge of the species, e.g. Neutral(), Positive(n), Negative(n)
 - `electronic_state=nothing`: Optional, label for the electronic state.
 - `vibrational_state=nothing`: Optional, label for the vibrational state. If defined, `electronic_state` cannot be `nothing`.
@@ -112,7 +112,9 @@ Boltzmann solver and automatically fills in the fields of `Species`.
 """
 function Species(str::String; metadata=nothing)
   str = join(map(x -> isspace(str[x]) ? "" : str[x], 1:length(str)))
-  regex = r"(^(?:\w|\d)*)(?:\[([+\-]+)?,?([^,\]]+)?(?:,vib=(\([^\)]*\)|[^,\]]*)(?:,rot=(\([^\)]*\)|[^,\]]*))?)?\])?"
+  # The gas group accepts '-' so ExoMol-style isotope slugs ("16O-1H",
+  # "12C-16O2") stay a single token instead of being cut at the first dash.
+  regex = r"(^[A-Za-z0-9\-]*)(?:\[([+\-]+)?,?([^,\]]+)?(?:,vib=(\([^\)]*\)|[^,\]]*)(?:,rot=(\([^\)]*\)|[^,\]]*))?)?\])?"
   m = collect(match(regex, str))
   Species(;
     gas = Gas(m[1]),

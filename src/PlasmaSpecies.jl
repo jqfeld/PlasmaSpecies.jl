@@ -8,7 +8,10 @@ export Positive, Negative, Neutral, Charge, Species
 export ispositive, isnegative, isneutral
 
 include("gas.jl")
-export Gas, StringGas, DiNitrogen, Nitrogen, DiOxygen, Oxygen
+export Gas, StringGas, Electron, Molecule
+export Nuclide, Element, Isotope, ELEMENTS, ISOTOPES
+export parse_formula, composition, canonical_composition
+export element, isotope, atomic_number, mass_number
 
 include("electronic_state.jl")
 export ElectronicState, StringElectronicState, TermSymbol
