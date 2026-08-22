@@ -1,3 +1,15 @@
+"""
+    ElectronicState
+
+Electronic state of a [`Species`](@ref). Two concrete types:
+[`StringElectronicState`](@ref) (a bare letter label) and [`TermSymbol`](@ref)
+(label plus spin/Λ/parity). Equality and ordering use [`label`](@ref) only, so
+the two are interchangeable wherever a state is matched.
+
+`ElectronicState(x)` dispatches on the argument: a string is parsed (see
+[`ElectronicState(::AbstractString)`](@ref)), `nothing` passes through, and an
+existing state is returned unchanged.
+"""
 abstract type ElectronicState end
 
 ElectronicState(::Nothing) = nothing
@@ -14,6 +26,14 @@ parsing round-trip, `==`, tree lookup, sorting) — richer physics carried by
 """
 function label end
 
+"""
+    StringElectronicState <: ElectronicState
+
+An electronic state carrying only its conventional letter `label` (`:X`, `:A`,
+`:a''`, ...) and no term-symbol physics. This is what
+[`ElectronicState`](@ref)`(::AbstractString)` returns for plain LoKI-B labels;
+strings that decompose into spin/Λ/parity become a [`TermSymbol`](@ref) instead.
+"""
 struct StringElectronicState <: ElectronicState
     name::Symbol
 end

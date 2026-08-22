@@ -1,3 +1,13 @@
+"""
+    Gas
+
+The chemical identity of a [`Species`](@ref), independent of its charge and
+internal state. Three concrete types: [`Molecule`](@ref) (resolved from a
+chemical formula, knows its composition and mass), [`Electron`](@ref), and
+[`StringGas`](@ref) (unresolvable label, no mass).
+
+Construct with `Gas(label)`; gases sort by their printed label.
+"""
 abstract type Gas end
 
 include("nuclide.jl")
@@ -48,10 +58,22 @@ Base.show(io::IO, g::StringGas) = print(io, g.name)
 
 Base.isless(a::Gas, b::Gas) = isless(string(a), string(b))
 
+"""
+    composition(g::Gas)
+
+Fallback: only a [`Molecule`](@ref) carries a composition. Errors for
+[`StringGas`](@ref) and [`Electron`](@ref).
+"""
 composition(g::Gas) = error(
   """$(typeof(g)) has no composition. Only gases resolved from a chemical
   formula (see `parse_formula`) carry one.""")
 
+"""
+    mass(g::Gas) -> Float64
+
+Mass of one particle in kg, summed over the composition. Errors for a
+[`StringGas`](@ref), whose label never resolved to a formula.
+"""
 mass(g::Gas) = error(
   """No mass available for $(g): its label does not resolve to a chemical formula.
   Check the spelling (symbols are case-sensitive, so `Co` is cobalt and `CO` is

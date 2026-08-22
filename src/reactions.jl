@@ -1,4 +1,26 @@
 
+"""
+    ReactionFormula(subs, prods, substoich, prodstoich, reverse)
+    ReactionFormula(str::AbstractString)
+
+Stoichiometry of one reaction: substrate and product species with their
+coefficients, plus whether it is reversible. No rate — pair it with one using
+[`PlasmaReaction`](@ref).
+
+## Fields
+
+- `subs`, `prods`: `Vector{Species}`.
+- `substoich`, `prodstoich`: coefficients, `Int` throughout unless a fractional
+  one appears, which promotes the whole side to `Float64`.
+- `reverse::Bool`: `true` for `<-->`.
+
+The constructor normalises both sides: repeated species are combined
+(`e + e` becomes `2e`) and species are sorted, so two formulas written
+differently but meaning the same thing compare and print identically.
+
+From a string, see [`parse_reaction`](@ref); the [`@p_str`](@ref) macro is the
+short form.
+"""
 struct ReactionFormula
   subs
   prods
@@ -71,6 +93,21 @@ function sort_by_species(sp, stoich)
   return sp[p], stoich[p]
 end
 
+"""
+    parse_reaction(str) -> ReactionFormula
+
+Parse a reaction string in LoKI-B notation. Sides are separated by an arrow and
+terms by `+`:
+
+    e + N2 --> 2e + N2[+]
+    N2[X,vib=0] <--> N2[X,vib=1]     # reversible
+    N2[X,vib=1] <-- N2[X,vib=0]      # normalised to the forward direction
+
+Each term is an optional stoichiometric coefficient followed by a species
+string (see [`Species(::String)`](@ref)). A decimal coefficient
+(`0.5O2[X]`, common in wall reactions) makes that side `Float64`. Whitespace is
+ignored, and a `+` inside brackets (`N2[+]`) is not a term separator.
+"""
 function parse_reaction(str)
   str = replace(str, r"\s" => "")
   dir = match(r"(-->|<-->|<--)", str)[1]
@@ -96,6 +133,18 @@ function parse_reaction(str)
 end
 ReactionFormula(str) = parse_reaction(str)
 
+"""
+    p"..."
+
+Parse a species or a reaction, whichever the string looks like: it becomes a
+[`ReactionFormula`](@ref) if it contains an arrow, otherwise a
+[`Species`](@ref).
+
+```julia
+p"N2[X,vib=1]"            # Species
+p"e + N2 --> 2e + N2[+]"  # ReactionFormula
+```
+"""
 macro p_str(s)
   if contains(s, r"(-->|<-->|<--)")
     return parse_reaction(s)
@@ -106,18 +155,36 @@ macro p_str(s)
 end
 
 """
-    ```julia 
-    apply_tree(t::SpeciesTree, reactions::ReactionFormula)
-    ```
+    apply_tree(t::SpeciesTree, r::ReactionFormula)  -> Vector{Tuple{Float64,ReactionFormula}}
+    apply_tree(t::SpeciesTree, pr::PlasmaReaction)  -> Vector{PlasmaReaction}
 
-Apply the species tree to a reaction and return an array with tuples containing 
-the scaling factor and the new reaction. 
-This means for each participating species it is checked, if it is a leaf of the tree. 
-If not, a new reaction is created for each descendent species. 
-If the non-leaf species is a product, the branching factor is one over the number of 
-descendants (effectively assuming that the total reaction rate is distributed equally
-over all possible products).
+Expand a reaction written over lumped species into one reaction per combination
+of actual states in `t`.
 
+Every species in the formula is resolved to the leaves of `t` it matches, via
+[`matching_leaves`](@ref) — an exact state matches itself, a lumped one
+(`N2[X]`) matches its whole subtree, and a range (`vib=0-4`) matches the levels
+it contains. The result is one reaction per element of the product of those
+sets.
+
+Each gets a branching factor of `1 / (number of product combinations)`: the
+total rate is split equally over the possible outcomes. For a
+[`ReactionFormula`](@ref) the factor is returned alongside the reaction; for a
+[`PlasmaReaction`](@ref) it is folded into the rate by [`scale_rate`](@ref).
+
+Reactions whose species are not in the tree at all are dropped with a warning,
+rather than silently expanding to nothing. Passing several reactions (varargs or
+a vector) concatenates the results and skips any that throw, again with a
+warning.
+
+```julia
+julia> t = SpeciesTree(["e", "N2[X,vib=0]", "N2[X,vib=1]", "N2[X,vib=2]"]);
+
+julia> apply_tree(t, p"e + N2[X,vib=0-1] --> e + N2[X,vib=2]")
+2-element Vector{Tuple{Float64, ReactionFormula}}:
+ (1.0, e+N2[X,vib=0]-->e+N2[X,vib=2])
+ (1.0, e+N2[X,vib=1]-->e+N2[X,vib=2])
+```
 """
 function apply_tree(t::SpeciesTree, reaction::ReactionFormula)
   sub_leaves = [matching_leaves(t, s) for s in reaction.subs]
@@ -152,11 +219,44 @@ end
 apply_tree(t::SpeciesTree, reactions::Vector{ReactionFormula}) = PlasmaSpecies.apply_tree(t, reactions...)
 
 
+"""
+    ismassbalanced(r::ReactionFormula) -> Bool
+
+Whether both sides have the same total mass, to within `≈`. Requires every
+species to have a resolvable mass — errors on a [`StringGas`](@ref). Not
+exported.
+"""
 ismassbalanced(r::ReactionFormula) = sum(mass.(r.prods) .* r.prodstoich) ≈ sum(mass.(r.subs) .* r.substoich)
+
+"""
+    ischargebalanced(r::ReactionFormula) -> Bool
+
+Whether both sides carry the same total charge. Not exported.
+"""
 ischargebalanced(r::ReactionFormula) = sum(to_value.(charge.(r.prods)) .* r.prodstoich) == sum(to_value.(charge.(r.subs)) .* r.substoich)
+
+"""
+    isreactive(r) -> Bool
+
+Whether a [`ReactionFormula`](@ref) or [`PlasmaReaction`](@ref) changes
+anything: `false` when both sides hold the same species with the same
+coefficients. [`apply_tree`](@ref) can produce such identities when a lumped
+reaction expands onto a single state, and they contribute nothing to a
+chemistry.
+"""
 isreactive(r::ReactionFormula) = !(r.subs == r.prods && r.substoich == r.prodstoich)
 
 
+"""
+    PlasmaReaction(rate, formula)
+
+A [`ReactionFormula`](@ref) with a rate attached.
+
+`rate` is deliberately untyped: a number is a constant rate coefficient,
+anything callable is evaluated by the consumer (a temperature- or
+field-dependent fit, an interpolation from a Boltzmann solver). Only
+[`scale_rate`](@ref) touches it here.
+"""
 struct PlasmaReaction{R,F<:ReactionFormula}
     rate::R
     formula::F
@@ -191,6 +291,20 @@ function apply_tree(t::SpeciesTree, prs::PlasmaReaction...)
 end
 apply_tree(t::SpeciesTree, prs::Vector{<:PlasmaReaction}) = apply_tree(t, prs...)
 
+"""
+    thermal_source_term(pr::PlasmaReaction) -> Function
+
+Build `(n₁, n₂, ...) -> rate * ∏ nᵢ^stoichᵢ * (-ΔE)`, the power released into
+the gas by `pr` at the given substrate densities. Arguments are the substrate
+densities in the order of `pr.formula.subs`.
+
+Sign convention: an exothermic reaction (`ΔE < 0`, see
+[`reaction_energy`](@ref)) gives a positive source. Errors unless every species
+in the reaction has an `energy`; set them with [`apply_energy!`](@ref).
+
+Assumes a constant `rate` — the product is formed directly, without evaluating
+a callable rate.
+"""
 function thermal_source_term(pr::PlasmaReaction)
   ΔE = reaction_energy(pr)
   isnothing(ΔE) && error("Cannot compute thermal source term: one or more species have unknown energy.")
@@ -198,6 +312,16 @@ function thermal_source_term(pr::PlasmaReaction)
   (ns...) -> pr.rate * prod(n^st for (n, st) in zip(ns, stoichs)) * (-ΔE)
 end
 
+"""
+    reaction_energy(r::PlasmaReaction) -> Union{Number,Nothing}
+
+Energy balance `Σ E(products) - Σ E(substrates)`, weighted by stoichiometry.
+Negative for an exothermic reaction. Returns `nothing` if any species has no
+`energy` set, which is the expected state for a chemistry that has not had
+[`apply_energy!`](@ref) applied.
+
+The unit is whatever [`energy`](@ref) carries.
+"""
 function reaction_energy(r::PlasmaReaction)
   f = r.formula
   any(isnothing ∘ energy, f.subs) && return nothing

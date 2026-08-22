@@ -32,7 +32,25 @@ export apply_tree
 export reaction_energy, thermal_source_term, isreactive, scale_rate
 
 
-# CatalystExt definitions
+"""
+    to_catalyst(sp::Species)
+    to_catalyst(t::SpeciesTree)
+    to_catalyst(t::SpeciesTree, reactions...)
+
+Export to [Catalyst.jl](https://docs.sciml.ai/Catalyst/stable/). Provided by an
+extension: it only works once `Catalyst` is loaded in the same session,
+otherwise every method throws.
+
+- A `Species` becomes a Catalyst species variable named after its string, so
+  anything carrying a charge or a state label is a `var"..."` identifier
+  (`var"N2[+]"`, `var"N2[X,vib=1]"`).
+- A `SpeciesTree` becomes the sum of its leaf variables.
+- `reactions` are `(rate, formula)` tuples or [`PlasmaReaction`](@ref)s, given
+  as varargs or a vector. Each is expanded over the tree by [`apply_tree`](@ref)
+  — branching factors folded into the rate — and returned as a
+  `Vector{Reaction}` ready for a `ReactionSystem`. Reactions that throw are
+  skipped with a warning.
+"""
 to_catalyst(_...) = error("to_catalyst() not implemented. Is Catalyst.jl loaded?")
 export to_catalyst
 

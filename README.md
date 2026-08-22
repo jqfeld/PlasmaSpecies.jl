@@ -5,33 +5,29 @@
 [![Build Status](https://github.com/jqfeld/PlasmaSpecies.jl/actions/workflows/CI.yml/badge.svg?branch=main)](https://github.com/jqfeld/PlasmaSpecies.jl/actions/workflows/CI.yml?query=branch%3Amain)
 [![Coverage](https://codecov.io/gh/jqfeld/PlasmaSpecies.jl/branch/main/graph/badge.svg)](https://codecov.io/gh/jqfeld/PlasmaSpecies.jl)
 
-## Overview
+Species and reaction bookkeeping for plasma-chemistry models.
 
-`PlasmaSpecies.jl` provides a small collection of types and helper functions for
-working with the charged and neutral species that appear in plasma chemistry
-models.  It focuses on
+`PlasmaSpecies.jl` defines what a species *is* — a gas, a charge, and
+optionally an electronic, vibrational and rotational state — and builds the
+hierarchy, reaction parsing and export on top of that. It does no physics:
+no rate coefficients, no transport, no solver.
 
-- convenient constructors for species such as electrons, ions, and neutrals using
-  the [LoKI-B](https://github.com/IST-Lisbon/LoKI) string notation,
-- utilities for navigating the hierarchy of vibrational, rotational, and
-  electronic states via `SpeciesTree`, and
-- parsing plasma reactions (including reversible ones) that can be converted into
-  [Catalyst.jl](https://catalyst.sciml.ai/stable/) `Reaction`s.
+- Species and reactions in the string notation of
+  [LoKI-B](https://github.com/IST-Lisbon/LoKI), with a `p"..."` macro.
+- Gases resolved from chemical formulas, natural-abundance or isotopically
+  specific, each knowing its own mass.
+- A `SpeciesTree` relating bulk `N2` to `N2[X]` to `N2[X,vib=1]`, and
+  `apply_tree` to expand a lumped reaction into one per resolved state.
+- Export to [Catalyst.jl](https://docs.sciml.ai/Catalyst/stable/) reaction
+  networks through a package extension.
 
-Extensive API documentation and additional examples are available in the
-[package documentation](https://jqfeld.github.io/PlasmaSpecies.jl/stable/).
+Full documentation: <https://jqfeld.github.io/PlasmaSpecies.jl/stable/>
 
 ## Installation
-
-Install the package directly from the Git repository using the Julia package
-manager:
 
 ```julia
 julia> import Pkg; Pkg.add(url="https://github.com/jqfeld/PlasmaSpecies.jl.git")
 ```
-
-The optional Catalyst.jl integration is automatically activated once
-`using Catalyst` has been executed in the same Julia session.
 
 ## Quick start
 
@@ -44,14 +40,14 @@ e
 julia> nitrogen_ion = Species("N2[+,B]")
 N2[+,B]
 
-julia> gas(nitrogen_ion), charge(nitrogen_ion)
-(N₂, +)
+julia> gas(nitrogen_ion), charge(nitrogen_ion), electronic_state(nitrogen_ion)
+(N₂, +, B)
 
 julia> reaction = p"e + N2 --> 2e + N2[+]"
 e+N2-->2e+N2[+]
 
-julia> reaction.subs, reaction.prods
-([e, N2], [e, N2[+]])
+julia> string.(reaction.prods), reaction.prodstoich
+(["e", "N2[+]"], [2, 1])
 
 julia> tree = SpeciesTree([electron, nitrogen_ion])
 nothing
@@ -60,10 +56,14 @@ nothing
    └─ N2[+,B]
 ```
 
+Species are compared and hashed on identity alone — gas, charge, and the three
+state fields — so attaching an `energy`, `degeneracy` or `metadata` payload
+never breaks a `Dict{Species,V}` lookup.
+
 ### Gases are compositions
 
 A gas is resolved from its chemical formula, so anything built from known
-nuclides works without being registered first — and knows its own mass:
+nuclides works without being registered first, and knows its own mass:
 
 ```julia
 julia> mass(Species("CO2")) / 1.66053906660e-27   # daltons
@@ -73,8 +73,10 @@ julia> gas(Species("H2O")), gas(Species("SF6"))
 (H₂O, SF₆)
 ```
 
-Write a specific isotopologue with ExoMol's `iso_slug` spelling, which lines
-these strings up with `ExoMol.jl`'s `load_isotopologue`:
+A bare element symbol means natural isotopic abundance (`N2` is 2 × 14.007 u),
+which is what LoKI-B and BOLSIG+ assume for a bulk gas. Write a specific
+isotopologue with ExoMol's `iso_slug` spelling, which lines these strings up
+with `ExoMol.jl`'s `load_isotopologue`:
 
 ```julia
 julia> mass(Species("28Si-16O")) / 1.66053906660e-27
@@ -84,19 +86,38 @@ julia> gas(Species("16O-1H"))
 ¹⁶O¹H
 ```
 
-A bare element symbol means natural isotopic abundance (`N2` is 2 × 14.007 u),
-which is what LoKI-B and BOLSIG+ assume for a bulk gas. Labels that are not
-resolvable formulas still parse and round-trip — they just have no mass.
+Labels that are not resolvable formulas still parse and round-trip — they just
+have no mass.
 
-If [Catalyst.jl](https://catalyst.sciml.ai/stable/) is loaded, reactions can be
-turned into Catalyst reactions that can be added to a modeling toolkit:
+### Reactions over a tree
+
+A reaction written for a lumped species expands to the states actually present:
+
+```julia
+julia> t = SpeciesTree(["e", "N2[X,vib=0]", "N2[X,vib=1]", "N2[+]"]);
+
+julia> apply_tree(t, p"e + N2[X] --> 2e + N2[+]")
+2-element Vector{Tuple{Float64, ReactionFormula}}:
+ (1.0, e+N2[X,vib=0]-->2e+N2[+])
+ (1.0, e+N2[X,vib=1]-->2e+N2[+])
+```
+
+Each result carries a branching factor — one over the number of product
+combinations — so a lumped *product* distributes the rate over its states.
+Pair a formula with a rate as a `PlasmaReaction` and the factor is folded into
+the rate instead.
+
+### Catalyst export
+
+Loading Catalyst activates the extension:
 
 ```julia
 julia> using Catalyst
 
-julia> to_catalyst(tree, (1.0, reaction))
-1-element Vector{Reaction}:
- 1.0, e + N2 --> 2*e + var"N2[+]"
+julia> to_catalyst(t, (1.0, reaction))
+2-element Vector{Reaction{...}}:
+ 1.0, e + var"N2[X,vib=0]" --> 2*e + var"N2[+]"
+ 1.0, e + var"N2[X,vib=1]" --> 2*e + var"N2[+]"
 ```
 
 Catalyst variables are named after the species string, so anything carrying a
@@ -105,5 +126,5 @@ charge or a state label becomes a `var"..."` identifier (`var"N2[+]"`,
 
 ## Project status
 
-The package is under active development.  If you encounter an issue or have a
-feature request, please open an [issue on GitHub](https://github.com/jqfeld/PlasmaSpecies.jl/issues).
+Under active development. Issues and feature requests:
+<https://github.com/jqfeld/PlasmaSpecies.jl/issues>.

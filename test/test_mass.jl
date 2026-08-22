@@ -29,6 +29,15 @@ const U = 1.66053906660e-27   # dalton in kg
     end
 end
 
+@testset "electron mass" begin
+    # CODATA 2018, the same source as U and the nuclide tables.
+    @test mass(Species("e")) ≈ 9.1093837015e-31 rtol = 1.0e-12
+
+    # Independent cross-check: the electron's relative atomic mass in daltons,
+    # converted with U, rather than the kg value compared against itself.
+    @test mass(Species("e")) ≈ 5.48579909065e-4 * U rtol = 1.0e-10
+end
+
 @testset "structure and charge" begin
     @test mass(Species("N2")) ≈ 2 * mass(Species("N"))
     @test mass(Species("N2[X,vib=0]")) == mass(Species("N2"))
