@@ -14,23 +14,16 @@ energy(v::Int; ωe = 2_358.57, ωeχe = 14.324) = ωe * (v + 0.5) - ωeχe * (v 
 wavenumber_to_eV(wn) = wn / 8_065.54
 Bv(v, Be = 1.99824, αe = 0.017318, γe = 0.0) = Be - αe * (v + 0.5) + γe * (v + 0.5)^2
 
-const max_v = 45
+const max_v = 1
 
-F(Y) = ifelse(Y == 0.0, 0.0, Y^2 * quadgk(x -> exp(-x) / sinh(Y / sqrt(x))^2, 0, Inf)[1])
-ΔE(v, w) = energy(v) + energy(w - 1) - energy(v - 1) - energy(w)
 ΔE(v) = energy(v) - energy(v - 1)
+
 L = 0.2e-10
 ħ = 1.0e-34
 μ = 28 * 1.66e-27 / 2
 kB = 1.38e-23
 h = 2π * ħ
 ω = 2_358.57 * 2 * pi * 3.0e10
-
-TLT = π^2 * L^2 * ω^2 * μ / 2 / kB
-
-Y(v, w, Tg) = sqrt(TLT / Tg) * abs(ΔE(v, w)) / 2_358.57
-Y(v, Tg) = sqrt(TLT / Tg) * abs(ΔE(v)) / 2_358.57
-
 
 tr = SpeciesTree(
     [
@@ -47,38 +40,27 @@ apply_energy!(tr[p"N2[X]"], energy_func)
 
 ##
 
-@variables Tgas(t) = 300.0
+@variables Tgas(t)
 
 rxs = PlasmaReaction[]
 
 kVV0 = 1.0e-20
-kVT0 = 3.0e-16
-
-@register_symbolic F(Y)
+kVT0 = 3.0e-10
 
 for v in 1:max_v
     for w in 0:max_v
         push!(
             rxs,
             PlasmaReaction(
-                kVT0 * exp(-400 / Tgas^(1 / 3) + 886 / Tgas^(2 / 3)) * v * F(Y(v, Tgas)) * exp(ΔE(v) * h * 3.0e10 / 2 / kB / Tgas),
+                kVT0 * exp(ΔE(v) * h * 3.0e10 / 2 / kB / Tgas),
                 ReactionFormula("N2[X,vib=$v] + N2[X,vib=$w] --> N2[X,vib=$(v - 1)] + N2[X,vib=$w]")
             )
         )
         push!(
             rxs,
             PlasmaReaction(
-                kVT0 * exp(-400 / Tgas^(1 / 3) + 886 / Tgas^(2 / 3)) * v * F(Y(v, Tgas)) * exp(-ΔE(v) * h * 3.0e10 / 2 / kB / Tgas),
+                kVT0 * exp(-ΔE(v) * h * 3.0e10 / 2 / kB / Tgas),
                 ReactionFormula("N2[X,vib=$(v - 1)] + N2[X,vib=$w] --> N2[X,vib=$(v)] + N2[X,vib=$w]")
-            )
-        )
-    end
-    for w in 1:max_v
-        push!(
-            rxs,
-            PlasmaReaction(
-                kVV0 * w * v * F(Y(v, w, Tgas)) * exp(ΔE(v, w) * h * 3.0e10 / 2 / kB / Tgas),
-                ReactionFormula("N2[X,vib=$v] + N2[X,vib=$(w - 1)] --> N2[X,vib=$(v - 1)] + N2[X,vib=$(w)]")
             )
         )
     end
@@ -121,7 +103,9 @@ prob = ODEProblem(
     [
         csys.var"N2[X,vib=0]" => Ngas,
         Tgas => 3000.0,
-    ], (0.0, 1)
+        # csys.var"N2[X,vib=0]" => (Ngas - Nv1),
+        # csys.var"N2[X,vib=1]" => Nv1,
+    ], (0.0, 100.0e-3)
 )
 
 sol = solve(prob)
@@ -139,7 +123,10 @@ lines(sol.t, sol[Tgas])
 
 ##
 
-scatter(
-    0:max_v, [sol[getproperty(csys, Symbol("N2[X,vib=$v]")), end] for v in 0:max_v],
-    axis = (yscale = log10,)
-)
+
+ΔE(1) * h * 3.0e10
+
+
+# lines!(
+#     0 .. 10, v -> sol[2, end] * exp(-wavenumber_to_eV(energy(v)) * 1.6e-19 / kB / Tgas)
+# )

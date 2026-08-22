@@ -4,22 +4,24 @@ using Test
 
 @testset "Species" begin
     @testset "Constructors" begin
-        neutral = Species(DiNitrogen())
-        @test gas(neutral) == DiNitrogen()
+        neutral = Species(Gas("N2"))
+        @test gas(neutral) == Gas("N2")
         @test charge(neutral) isa Neutral
         @test isnothing(electronic_state(neutral))
         @test isnothing(vibrational_state(neutral))
         @test isnothing(rotational_state(neutral))
 
         charged = Species(
-            DiNitrogen(),
+            Gas("N2"),
             Positive(2),
             StringElectronicState("B"),
             "1",
             nothing,
             nothing,
+            nothing,
+            nothing
         )
-        @test gas(charged) == DiNitrogen()
+        @test gas(charged) == Gas("N2")
         @test charge(charged) == Positive(2)
         @test string(electronic_state(charged)) == "B"
         @test vibrational_state(charged) == "1"
@@ -27,15 +29,15 @@ using Test
     end
 
     @testset "Keyword constructor" begin
-        sp = Species(gas=DiNitrogen())
-        @test gas(sp) == DiNitrogen()
+        sp = Species(gas=Gas("N2"))
+        @test gas(sp) == Gas("N2")
         @test charge(sp) isa Neutral
         @test isnothing(electronic_state(sp))
         @test isnothing(vibrational_state(sp))
         @test isnothing(rotational_state(sp))
 
-        sp2 = Species(gas=DiNitrogen(), charge=Positive(1), electronic_state=StringElectronicState("B"), vibrational_state="3")
-        @test gas(sp2) == DiNitrogen()
+        sp2 = Species(gas=Gas("N2"), charge=Positive(1), electronic_state=StringElectronicState("B"), vibrational_state="3")
+        @test gas(sp2) == Gas("N2")
         @test charge(sp2) == Positive(1)
         @test string(electronic_state(sp2)) == "B"
         @test vibrational_state(sp2) == "3"
@@ -44,20 +46,39 @@ using Test
 
     @testset "String parsing" begin
         parsed = Species(" N2[+, X, vib=2, rot=1] ")
-        @test gas(parsed) == DiNitrogen()
+        @test gas(parsed) == Gas("N2")
         @test charge(parsed) == Positive(1)
         @test string(electronic_state(parsed)) == "X"
-        @test vibrational_state(parsed) == "2"
-        @test rotational_state(parsed) == "1"
+        @test vibrational_state(parsed) === 2
+        @test rotational_state(parsed) === 1
 
         electron = Species("e")
         @test gas(electron) == Electron()
         @test charge(electron) == Negative(1)
 
-        unknown = Species("Ar[+]")
+        # Argon resolves from its formula, so it is an ordinary gas with a mass.
+        argon = Species("Ar[+]")
+        @test gas(argon) isa Molecule
+        @test string(gas(argon)) == "Ar"
+        @test charge(argon) == Positive(1)
+        @test isfinite(mass(argon))
+
+        unknown = Species("Xx[+]")
         @test gas(unknown) isa StringGas
-        @test string(gas(unknown)) == "Ar"
+        @test string(gas(unknown)) == "Xx"
         @test charge(unknown) == Positive(1)
+        @test_throws ErrorException mass(unknown)
+    end
+
+    @testset "Quantum label parsing" begin
+        @test vibrational_state(Species("N2[X,vib=3]")) === 3
+        @test vibrational_state(Species("N2[X,vib=0-4]")) === 0:4
+        @test vibrational_state(Species("N2[X,vib=(1,2)]")) === (1, 2)
+        @test vibrational_state(Species("N2[X,vib=(v1=1,v2=0)]")) === (v1=1, v2=0)
+        @test vibrational_state(Species("N2[X,vib=combined]")) === :combined
+
+        @test rotational_state(Species("N2[X,vib=0,rot=5]")) === 5
+        @test rotational_state(Species("N2[X,vib=0,rot=(1,2)]")) === (1, 2)
     end
 
     @testset "Parent relationships" begin
@@ -75,7 +96,42 @@ using Test
         @test is_parent_species(full, elec)
         @test is_parent_species(full, base)
         @test is_parent_species(vib, full)
-        @test is_parent_species(full, Species("N2[B]"))
+        # A different charge state is a different ladder: get_parent_species
+        # carries the charge, so neutral N2[B] is not above the ion.
+        @test !is_parent_species(full, Species("N2[B]"))
+
+        ranged = Species("N2[+,B,vib=0-4]")
+        @test is_parent_species(vib, ranged)
+        @test !is_parent_species(Species("N2[+,B,vib=5]"), ranged)
+        @test !is_parent_species(Species("N2[+,A,vib=3]"), ranged)
+    end
+
+    @testset "Base.in" begin
+        full   = Species("N2[+,B,vib=3,rot=5]")
+        vib    = Species("N2[+,B,vib=3]")
+        elec   = Species("N2[+,B]")
+        base   = Species("N2[+]")
+        ranged = Species("N2[+,B,vib=0-4]")
+
+        # reflexive, unlike is_parent_species
+        @test full in full
+        @test !is_parent_species(full, full)
+
+        # nothing fields on the right-hand side are wildcards
+        @test full in vib
+        @test full in elec
+        @test full in base
+        @test vib in elec
+
+        # a mismatched concrete field is not a wildcard
+        @test !(full in Species("N2[+,B,vib=2,rot=5]"))
+        @test !(full in Species("N2[+,A]"))
+
+        # range containment, and rotational_state actually checked (unlike is_parent_species)
+        @test vib in ranged
+        @test !(Species("N2[+,B,vib=5]") in ranged)
+        @test full in Species("N2[+,B,vib=3,rot=5]")
+        @test !(Species("N2[+,B,vib=3,rot=6]") in Species("N2[+,B,vib=3,rot=5]"))
     end
 
     @testset "Equality and ordering" begin
@@ -86,6 +142,11 @@ using Test
 
         states = Species.(["N2[B]", "N2[X]"])
         @test sort(states) == Species.(["N2[B]", "N2[X]"])
+
+        # vibrational_state is now a real Int (not a string needing `parse`), so
+        # comparing species that differ only by vib level must not throw.
+        vibs = Species.(["N2[X,vib=2]", "N2[X,vib=0]", "N2[X,vib=1]"])
+        @test sort(vibs) == Species.(["N2[X,vib=0]", "N2[X,vib=1]", "N2[X,vib=2]"])
     end
 
     @testset "Display" begin
@@ -97,6 +158,10 @@ using Test
 
         bare = Species("N2")
         @test string(bare) == "N2"
+
+        ranged = Species("N2[X,vib=0-4]")
+        @test string(ranged) == "N2[X,vib=0-4]"
+        @test Species(string(ranged)) == ranged
     end
 
     @testset "Mass" begin
@@ -106,11 +171,55 @@ using Test
         electron = Species("e")
 
         me = mass(Electron())
-        m_n2 = mass(DiNitrogen())
+        m_n2 = mass(Gas("N2"))
 
         @test mass(neutral) == m_n2
         @test mass(positive) ≈ m_n2 - me atol=eps(m_n2)
         @test mass(negative) ≈ m_n2 + me atol=eps(m_n2)
         @test mass(electron) == me
+    end
+end
+
+@testset "field preservation and invariants" begin
+    # Rebuilding a species must carry every field it was not asked to change.
+    sp = Species(gas = Gas("N2"), electronic_state = StringElectronicState("B"),
+                 vibrational_state = 3, degeneracy = 7, metadata = (transport = :data,))
+    moved = with_fields(sp, energy = 1.0)
+    @test energy(moved) == 1.0
+    @test degeneracy(moved) == 7
+    @test metadata(moved) == (transport = :data,)
+    @test moved == sp   # identity fields untouched
+
+    tree = SpeciesTree(sp)
+    apply_energy!(tree, _ -> 2.5)
+    leaf = leaves(tree)[1]
+    @test energy(leaf) == 2.5
+    @test degeneracy(leaf) == 7
+    @test metadata(leaf) == (transport = :data,)
+
+    # An electron is singly negative however it is built.
+    @test charge(Species("e")) == Negative(1)
+    @test charge(Species(Gas("e"))) == Negative(1)
+    @test charge(Species(gas = Gas("e"))) == Negative(1)
+    @test charge(Species(gas = Gas("e"), charge = Neutral())) == Negative(1)
+    @test Species("e") == Species(Gas("e")) == Species(gas = Gas("e"))
+    @test isnegative(Species(Gas("e")))
+end
+
+@testset "is_parent_species compares charge" begin
+    @test !is_parent_species(Species("N2[B,vib=1]"), Species("N2[+,B]"))
+    @test !is_parent_species(Species("N2[+,B,vib=1]"), Species("N2[B]"))
+    @test is_parent_species(Species("N2[B,vib=1]"), Species("N2[B]"))
+    @test is_parent_species(Species("N2[+,B,vib=1]"), Species("N2[+,B]"))
+end
+
+@testset "malformed species strings are rejected" begin
+    for s in ("N2[+", "N2[+,B", "N2]", "N2[[+]]", "N2[+]junk", "N2[+] trailing")
+        @test_throws ErrorException Species(s)
+    end
+    # Well-formed strings are unaffected.
+    for s in ("e", "N2", "N2[+]", "N2[+,B,vib=3,rot=1]", "O2[X,vib=0]",
+              "CO2[X,vib=(1,0,0)]", "Ar[++]", "16O-1H[+]", "N2[X,vib=0-4]")
+        @test Species(string(Species(s))) == Species(s)
     end
 end
