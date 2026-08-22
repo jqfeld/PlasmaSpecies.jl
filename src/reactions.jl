@@ -13,11 +13,18 @@ struct ReactionFormula
 end
 
 
+# Fractional coefficients ("0.5O2[X]") are common in wall/surface reactions,
+# so a decimal prefix parses as Float64; a plain integer prefix stays Int.
 function get_stoich(v::AbstractString)
-  m = match(r"^(\d+)", v)
-  return isnothing(m) ? 1 : parse(Int, m[1])
+  m = match(r"^(\d+(?:\.\d+)?)", v)
+  isnothing(m) && return 1
+  return occursin('.', m[1]) ? parse(Float64, m[1]) : parse(Int, m[1])
 end
-remove_stoich(s::AbstractString) = replace(s, r"^\d+" => s"")
+remove_stoich(s::AbstractString) = replace(s, r"^\d+(?:\.\d+)?" => s"")
+
+# Keep stoichiometry vectors concretely typed: all-Int stays Int, any
+# fractional coefficient promotes the whole vector to Float64.
+normalize_stoich(v) = all(x -> x isa Integer, v) ? Int.(v) : Float64.(v)
 
 
 function combine_same(sp, stoich)
@@ -40,13 +47,13 @@ function combine_same(sp, stoich)
 end
 
 function _show_side(io::IO, species, stoich)
-  if stoich[1] > 1
+  if !isone(stoich[1])
     show(io, stoich[1])
   end
   show(io, species[1])
   for i in Iterators.drop(eachindex(species), 1)
     print(io, '+')
-    if stoich[i] > 1
+    if !isone(stoich[i])
       show(io, stoich[i])
     end
     show(io, species[i])
@@ -73,8 +80,8 @@ function parse_reaction(str)
   lhs, rhs = dir == "<--" ? split(str, dir)[end:-1:1] : split(str, dir)
   substrates_str = split(lhs, r"(?<!\[|,)\+(?!,|\]|\s\]|\s,)")
   products_str = split(rhs, r"(?<!\[|,)\+(?!,|\]|\s\]|\s,)")
-  substoich = get_stoich.(substrates_str)
-  prodstoich = get_stoich.(products_str)
+  substoich = normalize_stoich(get_stoich.(substrates_str))
+  prodstoich = normalize_stoich(get_stoich.(products_str))
   subs = Species.(remove_stoich.(substrates_str))
   prods = Species.(remove_stoich.(products_str))
   subs, substoich = sort_by_species(combine_same(subs, substoich)...)

@@ -139,3 +139,16 @@ end
     @test tree[Species("Ar")] === nothing
     @test_throws KeyError tree[Species("Ar")] = SpeciesTree("Ar")
 end
+
+@testset "fractional stoichiometry" begin
+    rxn = ReactionFormula("O[3P] --> 0.5O2[X]")
+    @test Dict(string.(rxn.subs) .=> rxn.substoich) == Dict("O[3P]" => 1)
+    @test Dict(string.(rxn.prods) .=> rxn.prodstoich) == Dict("O2[X]" => 0.5)
+    @test rxn.prodstoich isa Vector{Float64}
+    @test rxn.substoich isa Vector{Int}
+    @test string(rxn) == "O[3P]-->0.5O2[X]"
+    @test PlasmaSpecies.ismassbalanced(rxn)
+    # integer-only reactions keep Int stoichiometry
+    plain = ReactionFormula("N2 + e --> N2[+] + 2e")
+    @test plain.substoich isa Vector{Int} && plain.prodstoich isa Vector{Int}
+end
