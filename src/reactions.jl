@@ -18,6 +18,10 @@ The constructor normalises both sides: repeated species are combined
 (`e + e` becomes `2e`) and species are sorted, so two formulas written
 differently but meaning the same thing compare and print identically.
 
+`==` and `hash` are field-wise over the normalised form (`reverse` included),
+so formulas work as `Dict` keys and in `Set`/`unique`/`in`. Direction is *not*
+canonicalised: a reversible `A <--> B` is not equal to `B <--> A`.
+
 From a string, see [`parse_reaction`](@ref); the [`@p_str`](@ref) macro is the
 short form.
 """
@@ -33,6 +37,38 @@ struct ReactionFormula
     new(subs, prods, substoich, prodstoich, reverse)
   end
 end
+
+# Comparison is field-wise on the *normalised* form, which is why it is this
+# simple: the inner constructor has already combined repeated species and
+# sorted both sides, so there is no canonicalisation left to do here. A
+# reversible `A <--> B` is deliberately *not* equal to `B <--> A` -- the
+# constructor does not canonicalise direction, so comparison does not invent
+# it either.
+Base.:(==)(a::ReactionFormula, b::ReactionFormula) =
+  a.subs == b.subs &&
+  a.prods == b.prods &&
+  a.substoich == b.substoich &&
+  a.prodstoich == b.prodstoich &&
+  a.reverse == b.reverse
+
+# Must mirror `==` exactly (same field set), for the same reason as
+# `hash(::Species)`: Julia's `Dict`/`Set` require `a == b` to imply
+# `hash(a) == hash(b)`. The fields here are `Vector`s -- fresh objects on every
+# construction -- so the default `objectid`-derived hash makes two separately
+# built formulas that mean the same thing hash differently, silently breaking
+# `Dict{ReactionFormula,V}`, `Set`, `unique` and `in`. `0x9c4b2f7a...` is just a
+# fixed salt distinguishing this hash from an unrelated type that happened to
+# hash its own fields the same way; any constant works.
+const _REACTIONFORMULA_HASH_SALT = UInt === UInt64 ? 0x9c4b2f7ae1d63508 : 0x9c4b2f7a
+function Base.hash(r::ReactionFormula, h::UInt)
+  h = hash(r.subs, h)
+  h = hash(r.prods, h)
+  h = hash(r.substoich, h)
+  h = hash(r.prodstoich, h)
+  h = hash(r.reverse, h)
+  return hash(_REACTIONFORMULA_HASH_SALT, h)
+end
+
 
 
 # Fractional coefficients ("0.5O2[X]") are common in wall/surface reactions,
@@ -256,6 +292,11 @@ A [`ReactionFormula`](@ref) with a rate attached.
 anything callable is evaluated by the consumer (a temperature- or
 field-dependent fit, an interpolation from a Boltzmann solver). Only
 [`scale_rate`](@ref) touches it here.
+
+For that reason `PlasmaReaction` has no `==`/`hash` of its own and falls back
+to identity: a `rate` is often a closure, and closures compare by identity, so
+equality of a whole reaction is not well-defined. Compare the `formula` fields
+instead -- [`ReactionFormula`](@ref) has proper `==`/`hash`.
 """
 struct PlasmaReaction{R,F<:ReactionFormula}
     rate::R
