@@ -152,3 +152,53 @@ end
     plain = ReactionFormula("N2 + e --> N2[+] + 2e")
     @test plain.substoich isa Vector{Int} && plain.prodstoich isa Vector{Int}
 end
+
+@testset "equality and hashing" begin
+    # Two separately-built formulas that mean the same thing. The failure this
+    # guards against hides behind `a == a`, which passes on identity alone.
+    a = ReactionFormula("e + O2 --> e + O2[a1Dg]")
+    b = ReactionFormula("e + O2 --> e + O2[a1Dg]")
+    @test a !== b
+    @test string(a) == string(b)
+    @test a == b
+    @test isequal(a, b)
+    @test hash(a) == hash(b)
+    @test b in [a]
+    @test length(unique([a, b])) == 1
+    @test length(Set([a, b])) == 1
+    @test Dict(a => 1)[b] == 1
+    @test a == a
+
+    @testset "normalisation makes it order-independent" begin
+        @test ReactionFormula("e + O2 --> e + O2[a1Dg]") ==
+              ReactionFormula("O2 + e --> O2[a1Dg] + e")
+        @test ReactionFormula("e + e + N2 --> N2") == ReactionFormula("2e + N2 --> N2")
+        @test hash(ReactionFormula("e + e + N2 --> N2")) ==
+              hash(ReactionFormula("2e + N2 --> N2"))
+    end
+
+    @testset "Int and Float stoichiometry compare equal" begin
+        i = ReactionFormula("2O[3P] --> O2[X]")
+        f = ReactionFormula("2.0O[3P] --> O2[X]")
+        @test i.substoich isa Vector{Int} && f.substoich isa Vector{Float64}
+        @test i == f
+        @test hash(i) == hash(f)
+    end
+
+    @testset "genuinely different formulas stay unequal" begin
+        base = ReactionFormula("N2 + e --> N2[+] + 2e")
+        @test base != ReactionFormula("N2 + e <--> N2[+] + 2e")   # reverse flag
+        @test base != ReactionFormula("O2 + e --> O2[+] + 2e")    # species
+        @test base != ReactionFormula("N2 + e --> N2[+] + 3e")    # stoichiometry
+        @test base != ReactionFormula("N2[+] + 2e --> N2 + e")    # direction
+        # reversible reactions are not canonicalised by direction
+        @test ReactionFormula("N2 + e <--> N2[+] + 2e") !=
+              ReactionFormula("N2[+] + 2e <--> N2 + e")
+    end
+
+    @testset "usable as a Dict key across construction sites" begin
+        rates = Dict(ReactionFormula("N2 + e --> N2[+] + 2e") => 1.5e-14)
+        @test rates[ReactionFormula("e + N2 --> 2e + N2[+]")] == 1.5e-14
+        @test haskey(rates, p"N2 + e --> N2[+] + 2e")
+    end
+end

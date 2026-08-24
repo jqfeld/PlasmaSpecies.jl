@@ -7,6 +7,8 @@ using Test
         pr = PlasmaReaction(1.5e-14, formula)
         @test pr.rate == 1.5e-14
         @test pr.formula === formula
+        # the formula compares by value, so an equivalent one built elsewhere matches
+        @test pr.formula == ReactionFormula("e + N2 --> 2e + N2[+]")
     end
 
     @testset "apply_tree: no branching" begin
