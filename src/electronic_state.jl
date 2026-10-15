@@ -93,6 +93,7 @@ Base.show(io::IO, s::ElectronicState) = print(io, label(s))
 # order electronic states alphabetically by label
 Base.isless(a::ElectronicState, b::ElectronicState) = isless(string(label(a)), string(label(b)))
 
-# concrete electronic state comes before unspecified electronic state
-Base.isless(a::ElectronicState, ::Nothing) = false
-Base.isless(::Nothing, ::ElectronicState) = true
+# concrete electronic state comes before unspecified electronic state, the same
+# rule `isless(::Species, ::Species)` applies to vibrational/rotational levels
+Base.isless(a::ElectronicState, ::Nothing) = true
+Base.isless(::Nothing, ::ElectronicState) = false

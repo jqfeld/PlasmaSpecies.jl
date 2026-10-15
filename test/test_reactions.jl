@@ -233,3 +233,19 @@ end
     # The old spelling is an error, not a silent 16 x "O-1H".
     @test_throws ArgumentError parse_reaction("16O-1H + e --> 16O-1H[-]")
 end
+
+@testset "multiply charged ions" begin
+    r = parse_reaction("e + Ar[+++] --> Ar[++]")
+    @test Dict(string.(r.subs) .=> r.substoich) == Dict("e" => 1, "Ar[+++]" => 1)
+    @test Dict(string.(r.prods) .=> r.prodstoich) == Dict("Ar[++]" => 1)
+    @test PlasmaSpecies.ischargebalanced(r)
+
+    r2 = parse_reaction("e + Ar[+++] --> 2e + Ar[++++]")
+    @test Dict(string.(r2.prods) .=> r2.prodstoich) == Dict("e" => 2, "Ar[++++]" => 1)
+    @test PlasmaSpecies.ischargebalanced(r2)
+
+    # charge plus state inside the brackets
+    r3 = parse_reaction("N2[++,B] + O[-] --> N2[+,B] + O")
+    @test Set(string.(r3.subs)) == Set(["N2[++,B]", "O[-]"])
+    @test PlasmaSpecies.ischargebalanced(r3)
+end

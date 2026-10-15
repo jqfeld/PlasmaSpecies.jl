@@ -140,8 +140,9 @@ using Test
         ordering = Species.(["N2[+]", "N2", "e"])
         @test sort(ordering) == Species.(["N2", "N2[+]", "e"])
 
-        states = Species.(["N2[B]", "N2[X]"])
-        @test sort(states) == Species.(["N2[B]", "N2[X]"])
+        # ground state X first, then alphabetical
+        states = Species.(["N2[B]", "N2[X]", "N2[A]"])
+        @test sort(states) == Species.(["N2[X]", "N2[A]", "N2[B]"])
 
         # vibrational_state is now a real Int (not a string needing `parse`), so
         # comparing species that differ only by vib level must not throw.
@@ -245,5 +246,46 @@ end
         @test isnegative === Base.isnegative
         @test isnegative(-1) && !isnegative(1)
         @test ispositive(1) && !ispositive(-1)
+    end
+end
+
+@testset "sort order" begin
+    sps = Species.(["N2", "N2[B]", "N2[X]", "N2[X,vib=1]", "N2[A]", "N2[X,vib=0]",
+                    "N2[X,vib=0,rot=2]", "N2[X,vib=0,rot=1]"])
+    # resolved before unresolved at every level, ground state X first
+    @test string.(sort(sps)) == ["N2[X,vib=0,rot=1]", "N2[X,vib=0,rot=2]", "N2[X,vib=0]",
+                                 "N2[X,vib=1]", "N2[X]", "N2[A]", "N2[B]", "N2"]
+    # a strict weak order: never both a < b and b < a, never a < a
+    for a in sps, b in sps
+        @test !(isless(a, b) && isless(b, a))
+    end
+    @test all(s -> !isless(s, s), sps)
+    # an unresolved electronic state no longer jumps ahead of a resolved one
+    @test isless(Species("N2[B]"), Species("N2"))
+    @test !isless(Species("N2"), Species("N2[B]"))
+end
+
+@testset "levels without their parent" begin
+    sp = Species("N2[vib=1]")
+    @test isnothing(electronic_state(sp))
+    @test vibrational_state(sp) == 1
+    @test charge(Species("N2[+,vib=1]")) == Positive(1)
+    @test vibrational_state(Species("N2[+,vib=1]")) == 1
+    @test isnothing(vibrational_state(Species("N2[X,rot=3]")))
+    @test rotational_state(Species("N2[X,rot=3]")) == 3
+
+    # display is well-formed and round-trips for every combination
+    @test string(Species(gas = Gas("N2"), vibrational_state = 1)) == "N2[vib=1]"
+    @test string(Species(gas = Gas("N2"), electronic_state = StringElectronicState("X"),
+                         rotational_state = 3)) == "N2[X,rot=3]"
+    for s in ("N2[vib=1]", "N2[+,vib=1]", "N2[X,rot=3]", "N2[vib=0-4]", "N2[rot=2]",
+              "N2[+,B,vib=3,rot=1]", "N2[++]", "e")
+        @test string(Species(s)) == s
+        @test Species(string(Species(s))) == Species(s)
+    end
+
+    # "vib=" is a keyword, not an electronic label, and needs a field boundary
+    for s in ("N2[Xvib=1]", "N2[+vib=1]", "N2[X,vib=1,X]", "N2[rot=1,vib=1]")
+        @test_throws ErrorException Species(s)
     end
 end
