@@ -229,3 +229,21 @@ end
     @test !isless(Species("N2[X,vib=1,rot=2]"), Species("N2[X,vib=1,rot=2]"))
     @test sort([Species("N2"), Species("N2")]) == [Species("N2"), Species("N2")]
 end
+
+@testset "charge predicates" begin
+    @test isnegative(Species("e"))
+    @test isnegative(Species("O[-]"))
+    @test !isnegative(Species("N2[+]"))
+    @test !isnegative(Species("N2"))
+    @test ispositive(Species("N2[+]"))
+    @test !ispositive(Species("N2"))
+    @test !ispositive(Species("e"))
+    @test isneutral(Species("N2"))
+    @test !isneutral(Species("N2[+]"))
+    # where Base owns these, its methods for numbers stay intact
+    if isdefined(Base, :isnegative)
+        @test isnegative === Base.isnegative
+        @test isnegative(-1) && !isnegative(1)
+        @test ispositive(1) && !ispositive(-1)
+    end
+end
