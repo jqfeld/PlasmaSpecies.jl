@@ -162,7 +162,7 @@ terms by `+`:
     N2[X,vib=1] <-- N2[X,vib=0]      # normalised to the forward direction
 
 Each term is an optional stoichiometric coefficient followed by a species
-string (see [`Species(::String)`](@ref)). A decimal coefficient
+string (see [`Species(::AbstractString)`](@ref)). A decimal coefficient
 (`0.5O2[X]`, common in wall reactions) makes that side `Float64`. Whitespace is
 ignored, and a `+` inside brackets (`N2[+]`) is not a term separator.
 
@@ -172,7 +172,12 @@ in front of its symbol (see [`parse_formula`](@ref)), so `2{16}O{1}H` is two
 """
 function parse_reaction(str)
   str = replace(str, r"\s" => "")
-  dir = match(r"(-->|<-->|<--)", str)[1]
+  arrows = collect(eachmatch(r"<-->|-->|<--", str))
+  length(arrows) == 1 || throw(ArgumentError(
+    length(arrows) == 0 ?
+      "no reaction arrow in $(repr(str)); expected one of -->, <--, <-->" :
+      "more than one reaction arrow in $(repr(str))"))
+  dir = arrows[1].match
   reverse_reaction = dir == "<-->"
   # Split on the arrow that actually matched, so "<-->" does not leave a stray
   # '<' on the left-hand side.

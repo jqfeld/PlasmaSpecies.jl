@@ -249,3 +249,14 @@ end
     @test Set(string.(r3.subs)) == Set(["N2[++,B]", "O[-]"])
     @test PlasmaSpecies.ischargebalanced(r3)
 end
+
+@testset "arrow errors" begin
+    @test_throws ArgumentError parse_reaction("e + N2")
+    @test_throws ArgumentError parse_reaction("A --> B --> C")
+    @test_throws ArgumentError parse_reaction("A <--> B --> C")
+    # the message names the problem
+    err = try parse_reaction("e + N2") catch e e end
+    @test occursin("no reaction arrow", sprint(showerror, err))
+    # SubString input
+    @test parse_reaction(SubString("e + N2 --> 2e + N2[+]")) == p"e + N2 --> 2e + N2[+]"
+end

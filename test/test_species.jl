@@ -289,3 +289,26 @@ end
         @test_throws ErrorException Species(s)
     end
 end
+
+@testset "input handling" begin
+    # any AbstractString, and whitespace stripped by character, not by byte
+    @test Species(SubString("N2[+]", 1, 5)) == Species("N2[+]")
+    @test Species(strip("  N2[X,vib=1]  ")) == Species("N2[X,vib=1]")
+    @test_throws ErrorException Species("N₂")          # a parse error, not a BoundsError
+    @test_throws ErrorException Species("N2 [X] é")
+
+    # an explicit 0 charge is neutral, as the docs say
+    @test Species("N2[0]") == Species("N2")
+    @test Species("N2[0,X]") == Species("N2[X]")
+    @test Species("N2[0,X,vib=1]") == Species("N2[X,vib=1]")
+    @test string(Species("N2[0,X]")) == "N2[X]"
+
+    # 1-tuples print with a trailing comma and must parse back
+    for s in ("N2[X,vib=(1,)]", "N2[X,vib=(1,),rot=(2,)]", "N2[X,vib=(v1=1,)]")
+        sp = Species(s)
+        @test vibrational_state(sp) isa Union{Tuple,NamedTuple}
+        @test Species(string(sp)) == sp
+    end
+    @test vibrational_state(Species("N2[X,vib=(1,)]")) == (1,)
+    @test vibrational_state(Species("N2[X,vib=(v1=1,)]")) == (v1 = 1,)
+end
