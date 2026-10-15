@@ -209,7 +209,9 @@ Every bracketed field is optional, but the order is fixed. `GAS` is resolved by
 [`StringGas`](@ref). `CHARGE` is a run of `+`/`-`, or `0` for an explicit
 neutral (see [`Charge`](@ref)), the
 electronic state is parsed by [`ElectronicState`](@ref), and the `vib=`/`rot=`
-levels by [`parse_quantum_label`](@ref). Whitespace is stripped first.
+levels by [`parse_quantum_label`](@ref). Whitespace is stripped first. A charge
+written as a number (`"He[2+]"`) throws: it would otherwise read as a neutral in
+the electronic state `2+`; write `"He[++]"`.
 
 ```julia
 Species("e")
@@ -245,6 +247,13 @@ function Species(str::AbstractString; metadata=nothing)
     """Cannot parse species string $(repr(str)). Expected \
     GAS[(CHARGE,ELECTRONIC_STATE,vib=VSTATE,rot=JSTATE)], e.g. "N2[+,B,vib=3,rot=1]".""")
   m = collect(matched)
+  # A charge is a run of signs. A number with signs ("He[2+]") lands in the
+  # electronic-state group and would be a neutral species: refuse it.
+  if !isnothing(m[3]) && (n = match(r"^(\d+)([+\-])$", m[3]); !isnothing(n) || occursin(r"^\d+[+\-]+$", m[3]))
+    hint = isnothing(n) || !isnothing(m[2]) ? "" : ", e.g. \"$(m[1])[$(repeat(n[2], parse(Int, n[1])))]\""
+    error("Cannot parse species string $(repr(str)): the charge is a run of signs$hint; \
+          $(repr(m[3])) would be read as an electronic state of the uncharged species.")
+  end
   Species(;
     gas = Gas(m[1]),
     charge = Charge(m[2]),

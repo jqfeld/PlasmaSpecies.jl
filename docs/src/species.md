@@ -42,7 +42,9 @@ like. Whitespace is stripped, and a `+` inside brackets is never mistaken for a
 charge separator.
 
 A malformed string throws rather than parsing the part it recognises —
-`"N2[+"` is a typo, not a neutral N₂.
+`"N2[+"` is a typo, not a neutral N₂. So does a charge written as a number:
+`"He[2+]"` would otherwise be a neutral He in the electronic state `2+`; the
+charge is a run of signs, `"He[++]"`.
 
 ```@repl species
 Species("N2[+")

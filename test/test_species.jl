@@ -218,6 +218,13 @@ end
     for s in ("N2[+", "N2[+,B", "N2]", "N2[[+]]", "N2[+]junk", "N2[+] trailing")
         @test_throws ErrorException Species(s)
     end
+    # A charge written as a number would be a neutral in the electronic state "2+".
+    for s in ("He[2+]", "He[2-]", "O2[1-]", "He[2++]", "N2[+,2+]", "He[2+,vib=0]")
+        @test_throws ErrorException Species(s)
+    end
+    @test_throws "e.g. \"He[++]\"" Species("He[2+]")
+    @test_throws "e.g. \"O2[-]\"" Species("O2[1-]")
+    @test charge(Species("He[++]")) == Positive(2) && electronic_state(Species("Ar[+,2]")) == electronic_state(Species("Ar[2]"))
     # Well-formed strings are unaffected.
     for s in ("e", "N2", "N2[+]", "N2[+,B,vib=3,rot=1]", "O2[X,vib=0]",
               "CO2[X,vib=(1,0,0)]", "Ar[++]", "{16}O{1}H[+]", "N2[X,vib=0-4]")
