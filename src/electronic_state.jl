@@ -83,6 +83,10 @@ function ElectronicState(x::AbstractString)
 end
 
 Base.:(==)(a::ElectronicState, b::ElectronicState) = label(a) == label(b)
+# Must mirror `==`: a `TermSymbol` and a `StringElectronicState` with the same
+# label are equal, so they must hash equal too, or `Dict{Species,V}` lookups
+# miss across the two representations.
+Base.hash(s::ElectronicState, h::UInt) = hash(label(s), hash(:ElectronicState, h))
 Base.print(io::IO, s::ElectronicState) = print(io, label(s))
 Base.show(io::IO, s::ElectronicState) = print(io, label(s))
 

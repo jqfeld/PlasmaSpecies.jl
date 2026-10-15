@@ -57,3 +57,17 @@ using Test
         @test label.(sort(states)) == [:A, :B, :C]
     end
 end
+
+@testset "hash consistent with ==" begin
+    a = ElectronicState("B3Pig")
+    b = ElectronicState("B")
+    @test a == b
+    @test hash(a) == hash(b)
+
+    s1 = Species("N2[B3Pig]")
+    s2 = Species("N2[B]")
+    @test s1 == s2
+    @test hash(s1) == hash(s2)
+    @test haskey(Dict(s2 => 1), s1)
+    @test length(Set([s1, s2])) == 1
+end

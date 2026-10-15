@@ -80,6 +80,26 @@ function get_stoich(v::AbstractString)
 end
 remove_stoich(s::AbstractString) = replace(s, r"^\d+(?:\.\d+)?" => s"")
 
+# Split a reaction term into (coefficient, species string). A leading digit run
+# is normally the coefficient ("2e", "2N2", "2H2"), but in an ExoMol iso_slug
+# ("16O-1H", "2 × 12C-16O2" written "212C-16O2") the trailing digits of that run
+# are the first segment's mass number. For a slug, peel off the shortest
+# coefficient that leaves a known isotope; without a '-' the digits stay a
+# coefficient, so single-segment isotopologues ("14N2") must be spelled as a
+# slug ("14N-14N") inside a reaction.
+function split_stoich(term::AbstractString)
+  m = match(r"^(\d+)([A-Z][a-z]?)", term)
+  if !isnothing(m) && occursin('-', first(split(term, '[')))
+    digits, sym = m[1], Symbol(m[2])
+    for i in 0:length(digits)-1
+      isnothing(isotope(sym, parse(Int, digits[i+1:end]))) && continue
+      stoich = i == 0 ? 1 : parse(Int, digits[1:i])
+      return stoich, term[i+1:end]
+    end
+  end
+  return get_stoich(term), remove_stoich(term)
+end
+
 # Keep stoichiometry vectors concretely typed: all-Int stays Int, any
 # fractional coefficient promotes the whole vector to Float64.
 normalize_stoich(v) = all(x -> x isa Integer, v) ? Int.(v) : Float64.(v)
@@ -143,6 +163,12 @@ Each term is an optional stoichiometric coefficient followed by a species
 string (see [`Species(::String)`](@ref)). A decimal coefficient
 (`0.5O2[X]`, common in wall reactions) makes that side `Float64`. Whitespace is
 ignored, and a `+` inside brackets (`N2[+]`) is not a term separator.
+
+Leading digits are a coefficient (`2N2`, `2H2`), except in an ExoMol isotope
+slug, where they are the mass number of the first segment: `16O-1H` is one
+¹⁶O¹H and `216O-1H` is two. A single-segment isotopologue would be ambiguous
+(`14N2` reads as 14 × N₂), so write it as a slug inside a reaction:
+`14N-14N`.
 """
 function parse_reaction(str)
   str = replace(str, r"\s" => "")
@@ -153,10 +179,12 @@ function parse_reaction(str)
   lhs, rhs = dir == "<--" ? split(str, dir)[end:-1:1] : split(str, dir)
   substrates_str = split(lhs, r"(?<!\[|,)\+(?!,|\]|\s\]|\s,)")
   products_str = split(rhs, r"(?<!\[|,)\+(?!,|\]|\s\]|\s,)")
-  substoich = normalize_stoich(get_stoich.(substrates_str))
-  prodstoich = normalize_stoich(get_stoich.(products_str))
-  subs = Species.(remove_stoich.(substrates_str))
-  prods = Species.(remove_stoich.(products_str))
+  sub_terms = split_stoich.(substrates_str)
+  prod_terms = split_stoich.(products_str)
+  substoich = normalize_stoich(first.(sub_terms))
+  prodstoich = normalize_stoich(first.(prod_terms))
+  subs = Species.(String.(last.(sub_terms)))
+  prods = Species.(String.(last.(prod_terms)))
   subs, substoich = sort_by_species(combine_same(subs, substoich)...)
   prods, prodstoich = sort_by_species(combine_same(prods, prodstoich)...)
   return ReactionFormula(

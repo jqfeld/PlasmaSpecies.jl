@@ -223,3 +223,9 @@ end
         @test Species(string(Species(s))) == Species(s)
     end
 end
+
+@testset "isless on equal species" begin
+    @test !isless(Species("N2[X]"), Species("N2[X]"))
+    @test !isless(Species("N2[X,vib=1,rot=2]"), Species("N2[X,vib=1,rot=2]"))
+    @test sort([Species("N2"), Species("N2")]) == [Species("N2"), Species("N2")]
+end

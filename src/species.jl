@@ -517,4 +517,7 @@ function Base.isless(a::Species, b::Species)
     end
     return _quantum_label_isless(rotational_state(a), rotational_state(b))
   end
+
+  # identical identity fields: equal, so neither is less
+  return false
 end

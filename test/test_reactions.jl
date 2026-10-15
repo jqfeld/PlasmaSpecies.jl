@@ -202,3 +202,22 @@ end
         @test haskey(rates, p"N2 + e --> N2[+] + 2e")
     end
 end
+
+@testset "Isotope slugs in reactions" begin
+    r = parse_reaction("16O-1H + e --> 16O-1H[-]")
+    @test Dict(string.(r.subs) .=> r.substoich) == Dict("16O-1H" => 1, "e" => 1)
+    @test Dict(string.(r.prods) .=> r.prodstoich) == Dict("16O-1H[-]" => 1)
+    @test PlasmaSpecies.ismassbalanced(r)
+
+    # a coefficient in front of a slug
+    r2 = parse_reaction("212C-16O2 --> 212C-16O + 16O-16O")
+    @test Dict(string.(r2.subs) .=> r2.substoich) == Dict("12C-16O2" => 2)
+    @test Dict(string.(r2.prods) .=> r2.prodstoich) == Dict("12C-16O" => 2, "16O-16O" => 1)
+    @test PlasmaSpecies.ismassbalanced(r2)
+
+    # without a '-', leading digits stay a coefficient
+    r3 = parse_reaction("2H2 + O2 --> 2H2O")
+    @test Dict(string.(r3.subs) .=> r3.substoich) == Dict("H2" => 2, "O2" => 1)
+    @test PlasmaSpecies.ismassbalanced(r3)
+    @test parse_reaction("14N-14N + e --> 14N-14N[+] + 2e") |> PlasmaSpecies.ismassbalanced
+end
