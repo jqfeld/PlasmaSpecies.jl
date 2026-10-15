@@ -126,21 +126,34 @@ function parse_quantum_label(s::AbstractString)
 end
 
 
-"""
-    isnegative(x) -> Bool
+# Julia >= 1.13 exports `Base.isnegative`/`Base.ispositive` (sign of a real
+# number). Defining our own functions of the same name makes the export
+# ambiguous after `using PlasmaSpecies`, so extend Base's instead. The
+# catch-all `false` fallback exists only where the function is ours: on Base's
+# it would be type piracy.
+@static if isdefined(Base, :isnegative)
+  import Base: isnegative, ispositive
+else
+  isnegative(x) = false
+  ispositive(x) = false
+end
 
-Whether `x` is a negatively charged `Species`. Dispatches on the charge type
-parameter, so it resolves at compile time. `false` for a non-`Species`.
 """
-isnegative(x) = false
+    isnegative(sp::Species) -> Bool
+
+Whether `sp` is negatively charged. Dispatches on the charge type parameter, so
+it resolves at compile time. On Julia >= 1.13 this extends `Base.isnegative`;
+on older Julia it returns `false` for any non-`Species`.
+"""
+isnegative(::Species) = false
 isnegative(::Species{S,Negative,E,V,J}) where {S,E,V,J} = true
 
 """
-    ispositive(x) -> Bool
+    ispositive(sp::Species) -> Bool
 
-Whether `x` is a positively charged `Species`. See [`isnegative`](@ref).
+Whether `sp` is positively charged. See [`isnegative`](@ref).
 """
-ispositive(x) = false
+ispositive(::Species) = false
 ispositive(::Species{S,Positive,E,V,J}) where {S,E,V,J} = true
 
 """
@@ -517,4 +530,7 @@ function Base.isless(a::Species, b::Species)
     end
     return _quantum_label_isless(rotational_state(a), rotational_state(b))
   end
+
+  # identical identity fields: equal, so neither is less
+  return false
 end
