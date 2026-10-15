@@ -133,6 +133,31 @@ using Test
         @test f(ns...) ≈ 1.0 * 3.0 * 4.0 * (-2.0)
     end
 
+    @testset "thermal_source_term: callable rate via rate_args" begin
+        o2 = Species(gas=Gas("O2"), energy=1.0)
+        n2a = Species(gas=Gas("N2"), electronic_state=StringElectronicState("A"), energy=4.0)
+        k(Te) = 2.0 * Te
+        pr = PlasmaReaction(k, ReactionFormula([o2], [n2a], [1], [1], false))
+        f = thermal_source_term(pr)
+        # k(5.0) * 3.0 * (-(4.0 - 1.0))
+        @test f(3.0; rate_args=(5.0,)) ≈ 10.0 * 3.0 * (-3.0)
+        @test_throws MethodError f(3.0)   # k needs its argument
+
+        # after apply_tree the rate is a scale_rate closure: same rate_args
+        tree = SpeciesTree([o2, n2a])
+        expanded = apply_tree(tree, pr)
+        @test length(expanded) == 1
+        g = thermal_source_term(expanded[1])
+        @test g(3.0; rate_args=(5.0,)) ≈ 10.0 * 3.0 * (-3.0)
+
+        # a numeric rate ignores rate_args
+        h = thermal_source_term(PlasmaReaction(2.0, ReactionFormula([o2], [n2a], [1], [1], false)))
+        @test h(3.0; rate_args=(99.0,)) ≈ 2.0 * 3.0 * (-3.0)
+
+        # the density count must match the substrates
+        @test_throws ArgumentError f(3.0, 4.0; rate_args=(5.0,))
+    end
+
     @testset "thermal_source_term: unknown energy throws" begin
         sp1 = Species(gas=Gas("N2"))
         sp2 = Species(gas=Gas("N2"), electronic_state=StringElectronicState("A"), energy=5.0)

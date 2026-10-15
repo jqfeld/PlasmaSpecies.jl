@@ -48,8 +48,8 @@ otherwise every method throws.
 - `reactions` are `(rate, formula)` tuples or [`PlasmaReaction`](@ref)s, given
   as varargs or a vector. Each is expanded over the tree by [`apply_tree`](@ref)
   — branching factors folded into the rate — and returned as a
-  `Vector{Reaction}` ready for a `ReactionSystem`. Reactions that throw are
-  skipped with a warning.
+  `Vector{Reaction}` ready for a `ReactionSystem`. An error in any reaction
+  aborts the batch, logged with the reaction that caused it.
 """
 to_catalyst(_...) = error("to_catalyst() not implemented. Is Catalyst.jl loaded?")
 export to_catalyst

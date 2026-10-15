@@ -59,6 +59,11 @@ using Test
         result = to_catalyst(tree, [(1.0e-14, rxn), (2.0e-14, rxn)])
 
         @test length(result) == 2
+        # batches return a typed vector, not Vector{Any}
+        @test result isa Vector{Reaction}
+        @test to_catalyst(tree, (1.0e-14, rxn), (2.0e-14, rxn)) isa Vector{Reaction}
+        pr = PlasmaReaction(1.0e-14, rxn)
+        @test to_catalyst(tree, [pr, pr]) isa Vector{Reaction}
     end
 
     @testset "to_catalyst(tree, PlasmaReaction): no branching" begin

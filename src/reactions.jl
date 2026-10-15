@@ -10,13 +10,16 @@ coefficients, plus whether it is reversible. No rate — pair it with one using
 ## Fields
 
 - `subs`, `prods`: `Vector{Species}`.
-- `substoich`, `prodstoich`: coefficients, `Int` throughout unless a fractional
-  one appears, which promotes the whole side to `Float64`.
+- `substoich::Vector{S}`, `prodstoich::Vector{P}`: coefficients. Each side is
+  typed on its own: `Int` when all its coefficients are integers, otherwise
+  `Float64`, so `O[3P] --> 0.5O2[X]` is a `ReactionFormula{Int,Float64}`.
 - `reverse::Bool`: `true` for `<-->`.
 
 The constructor normalises both sides: repeated species are combined
 (`e + e` becomes `2e`) and species are sorted, so two formulas written
-differently but meaning the same thing compare and print identically.
+differently but meaning the same thing compare and print identically. It
+throws `ArgumentError` if a side has a different number of species and
+coefficients.
 
 `==` and `hash` are field-wise over the normalised form (`reverse` included),
 so formulas work as `Dict` keys and in `Set`/`unique`/`in`. Direction is *not*
@@ -25,18 +28,26 @@ canonicalised: a reversible `A <--> B` is not equal to `B <--> A`.
 From a string, see [`parse_reaction`](@ref); the [`@p_str`](@ref) macro is the
 short form.
 """
-struct ReactionFormula
-  subs
-  prods
-  substoich
-  prodstoich
+struct ReactionFormula{S<:Real,P<:Real}
+  subs::Vector{Species}
+  prods::Vector{Species}
+  substoich::Vector{S}
+  prodstoich::Vector{P}
   reverse::Bool
   function ReactionFormula(subs, prods, substoich, prodstoich, reverse)
-    subs, substoich = sort_by_species(combine_same(subs, substoich)...)
-    prods, prodstoich = sort_by_species(combine_same(prods, prodstoich)...)
-    new(subs, prods, substoich, prodstoich, reverse)
+    length(subs) == length(substoich) && length(prods) == length(prodstoich) ||
+      throw(ArgumentError("a reaction side needs one coefficient per species"))
+    S = _stoich_type(substoich)
+    P = _stoich_type(prodstoich)
+    subs, substoich = sort_by_species(combine_same(Species[subs...], S[substoich...])...)
+    prods, prodstoich = sort_by_species(combine_same(Species[prods...], P[prodstoich...])...)
+    new{S,P}(subs, prods, substoich, prodstoich, reverse)
   end
 end
+
+# A side's coefficients are Int when they all are, else Float64: concrete, and
+# an integer side stays exact next to a fractional one.
+_stoich_type(v) = all(x -> x isa Integer, v) ? Int : Float64
 
 # Comparison is field-wise on the *normalised* form, which is why it is this
 # simple: the inner constructor has already combined repeated species and
@@ -102,11 +113,6 @@ function split_terms(side::AbstractString)
   return terms
 end
 
-# Keep stoichiometry vectors concretely typed: all-Int stays Int, any
-# fractional coefficient promotes the whole vector to Float64.
-normalize_stoich(v) = all(x -> x isa Integer, v) ? Int.(v) : Float64.(v)
-
-
 function combine_same(sp, stoich)
   sp = copy(sp)
   stoich = copy(stoich)
@@ -126,16 +132,19 @@ function combine_same(sp, stoich)
   return new_sp, new_stoich
 end
 
+# A coefficient of 1 is implicit, and an integral Float64 prints as an integer
+# so a side written "2.0N2 + 0.5O2" reads back as "2N2+0.5O2".
+function _show_coefficient(io::IO, st)
+  isone(st) && return
+  isinteger(st) ? print(io, Int(st)) : show(io, st)
+end
+
 function _show_side(io::IO, species, stoich)
-  if !isone(stoich[1])
-    show(io, stoich[1])
-  end
+  _show_coefficient(io, stoich[1])
   show(io, species[1])
   for i in Iterators.drop(eachindex(species), 1)
     print(io, '+')
-    if !isone(stoich[i])
-      show(io, stoich[i])
-    end
+    _show_coefficient(io, stoich[i])
     show(io, species[i])
   end
 end
@@ -163,7 +172,8 @@ terms by `+`:
 
 Each term is an optional stoichiometric coefficient followed by a species
 string (see [`Species(::AbstractString)`](@ref)). A decimal coefficient
-(`0.5O2[X]`, common in wall reactions) makes that side `Float64`. Whitespace is
+(`0.5O2[X]`, common in wall reactions) makes that side's coefficients `Float64`;
+the other side keeps `Int` (see [`ReactionFormula`](@ref)). Whitespace is
 ignored, and a `+` inside brackets (`N2[+]`) is not a term separator.
 
 Leading digits are always the coefficient. A mass number is written in braces
@@ -184,18 +194,13 @@ function parse_reaction(str)
   lhs, rhs = dir == "<--" ? split(str, dir)[end:-1:1] : split(str, dir)
   substrates_str = split_terms(lhs)
   products_str = split_terms(rhs)
-  substoich = normalize_stoich(get_stoich.(substrates_str))
-  prodstoich = normalize_stoich(get_stoich.(products_str))
-  subs = Species.(remove_stoich.(substrates_str))
-  prods = Species.(remove_stoich.(products_str))
-  subs, substoich = sort_by_species(combine_same(subs, substoich)...)
-  prods, prodstoich = sort_by_species(combine_same(prods, prodstoich)...)
+  # The constructor combines repeated species, sorts, and types each side.
   return ReactionFormula(
-    subs,
-    prods,
-    substoich,
-    prodstoich,
-    reverse_reaction
+    Species.(remove_stoich.(substrates_str)),
+    Species.(remove_stoich.(products_str)),
+    get_stoich.(substrates_str),
+    get_stoich.(products_str),
+    reverse_reaction,
   )
 end
 ReactionFormula(str) = parse_reaction(str)
@@ -241,8 +246,9 @@ total rate is split equally over the possible outcomes. For a
 
 Reactions whose species are not in the tree at all are dropped with a warning,
 rather than silently expanding to nothing. Passing several reactions (varargs or
-a vector) concatenates the results and skips any that throw, again with a
-warning.
+a vector) concatenates the results. Any other error aborts the whole batch: it
+is logged with the reaction that caused it and then rethrown, so a chemistry is
+never silently built with a reaction missing.
 
 ```julia
 julia> t = SpeciesTree(["e", "N2[X,vib=0]", "N2[X,vib=1]", "N2[X,vib=2]"]);
@@ -269,21 +275,31 @@ function apply_tree(t::SpeciesTree, reaction::ReactionFormula)
   substrate_vectors = Iterators.product(sub_leaves...) .|> collect
   products_vectors = Iterators.product(prod_leaves...) .|> collect
   branching_factor = 1 / length(products_vectors)
-  [(branching_factor, ReactionFormula(subs, prods, reaction.substoich, reaction.prodstoich, reaction.reverse)) for subs in substrate_vectors for prods in products_vectors]
+  Tuple{Float64,ReactionFormula}[
+    (branching_factor, ReactionFormula(subs, prods, reaction.substoich, reaction.prodstoich, reaction.reverse))
+    for subs in substrate_vectors for prods in products_vectors]
+end
+
+# Run `f()` for one reaction of a batch. An error is logged with the reaction
+# it came from and rethrown unchanged, so the batch aborts instead of quietly
+# losing a reaction.
+function _expanding(f, reaction)
+  try
+    f()
+  catch
+    @error "Error while expanding reaction" reaction
+    rethrow()
+  end
 end
 
 function apply_tree(t::SpeciesTree, reactions::ReactionFormula...)
-  out = []
-  for rate_reaction in reactions
-    try
-      append!(out, apply_tree(t, rate_reaction))
-    catch error
-      @warn "Skipping reaction because an error occured while making " rate_reaction error
-    end
+  out = Tuple{Float64,ReactionFormula}[]
+  for r in reactions
+    append!(out, _expanding(() -> apply_tree(t, r), r))
   end
   return out
 end
-apply_tree(t::SpeciesTree, reactions::Vector{ReactionFormula}) = PlasmaSpecies.apply_tree(t, reactions...)
+apply_tree(t::SpeciesTree, reactions::AbstractVector{<:ReactionFormula}) = apply_tree(t, reactions...)
 
 
 """
@@ -351,38 +367,52 @@ function apply_tree(t::SpeciesTree, pr::PlasmaReaction)
 end
 
 function apply_tree(t::SpeciesTree, prs::PlasmaReaction...)
-  out = []
+  out = PlasmaReaction[]
   for pr in prs
-    try
-      append!(out, apply_tree(t, pr))
-    catch error
-      @warn "Skipping reaction because an error occured while making " pr error
-    end
+    append!(out, _expanding(() -> apply_tree(t, pr), pr))
   end
   return out
 end
-apply_tree(t::SpeciesTree, prs::Vector{<:PlasmaReaction}) = apply_tree(t, prs...)
+apply_tree(t::SpeciesTree, prs::AbstractVector{<:PlasmaReaction}) = apply_tree(t, prs...)
 
 """
     thermal_source_term(pr::PlasmaReaction) -> Function
 
-Build `(n₁, n₂, ...) -> rate * ∏ nᵢ^stoichᵢ * (-ΔE)`, the power released into
-the gas by `pr` at the given substrate densities. Arguments are the substrate
-densities in the order of `pr.formula.subs`.
+Build `(n₁, n₂, ...; rate_args=()) -> rate * ∏ nᵢ^stoichᵢ * (-ΔE)`, the power
+released into the gas by `pr` at the given substrate densities. Positional
+arguments are the substrate densities in the order of `pr.formula.subs`; the
+function throws `ArgumentError` if their number differs.
+
+A numeric `rate` is used as is and `rate_args` is ignored. A callable `rate` is
+evaluated as `rate(rate_args...)` on every call, so the closure is built once
+and can follow a changing electron temperature:
+
+```julia
+f = thermal_source_term(pr)          # pr.rate = Te -> 1e-15 * sqrt(Te)
+f(n_e, n_N2; rate_args=(Te,))
+```
+
+Rates wrapped by [`apply_tree`](@ref) (see [`scale_rate`](@ref)) take the same
+`rate_args` as the original.
 
 Sign convention: an exothermic reaction (`ΔE < 0`, see
 [`reaction_energy`](@ref)) gives a positive source. Errors unless every species
 in the reaction has an `energy`; set them with [`apply_energy!`](@ref).
-
-Assumes a constant `rate` — the product is formed directly, without evaluating
-a callable rate.
 """
 function thermal_source_term(pr::PlasmaReaction)
   ΔE = reaction_energy(pr)
   isnothing(ΔE) && error("Cannot compute thermal source term: one or more species have unknown energy.")
   stoichs = pr.formula.substoich
-  (ns...) -> pr.rate * prod(n^st for (n, st) in zip(ns, stoichs)) * (-ΔE)
+  rate = pr.rate
+  return function (ns...; rate_args=())
+    length(ns) == length(stoichs) || throw(ArgumentError(
+      "expected $(length(stoichs)) substrate densities for $(pr.formula), got $(length(ns))"))
+    _evaluate_rate(rate, rate_args) * prod(n^st for (n, st) in zip(ns, stoichs)) * (-ΔE)
+  end
 end
+
+_evaluate_rate(rate::Number, _) = rate
+_evaluate_rate(rate, args) = rate(args...)
 
 """
     reaction_energy(r::PlasmaReaction) -> Union{Number,Nothing}
