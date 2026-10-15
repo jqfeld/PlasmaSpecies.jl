@@ -5,7 +5,9 @@ using PlasmaSpecies
 using Catalyst
 
 function PlasmaSpecies.to_catalyst(sp::Species)
-    @variables t
+    # Catalyst's shared independent variable, so these species match the `t`
+    # of any ReactionSystem they are put into.
+    t = default_t()
     symbol = Symbol(string(sp))
     return (@species $symbol(t) = 0.0)[1]
 end

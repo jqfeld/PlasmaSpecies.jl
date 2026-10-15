@@ -6,7 +6,7 @@
 One state of one gas. All fields are type parameters, so a `Species` is
 concretely typed and cheap to store in arrays and `Dict` keys.
 
-Usually built from a LoKI-B string instead — see [`Species(::String)`](@ref).
+Usually built from a LoKI-B string instead — see [`Species(::AbstractString)`](@ref).
 
 ## Identity fields
 
@@ -108,7 +108,9 @@ function parse_quantum_label(s::AbstractString)
   isnothing(m) || return UnitRange(parse(Int, m[1]), parse(Int, m[2]))
 
   if startswith(s, "(") && endswith(s, ")")
-    parts = strip.(split(s[2:end-1], ","))
+    # A trailing comma is how Julia prints a 1-tuple ("(1,)"), so an empty last
+    # part is dropped rather than failing the Int parse.
+    parts = filter(!isempty, strip.(split(s[2:end-1], ",")))
     if !isempty(parts) && all(p -> occursin("=", p), parts)
       pairs = map(parts) do p
         k, v = split(p, "=")
@@ -195,7 +197,7 @@ end
 
 
 """
-    Species(str::String; metadata=nothing) -> Species
+    Species(str::AbstractString; metadata=nothing) -> Species
 
 Parse a species string in the notation of the
 [LoKI-B](https://github.com/IST-Lisbon/LoKI) Boltzmann solver:
@@ -204,7 +206,8 @@ Parse a species string in the notation of the
 
 Every bracketed field is optional, but the order is fixed. `GAS` is resolved by
 [`Gas`](@ref) — a chemical formula, `"e"`, or an unresolvable label kept as a
-[`StringGas`](@ref). `CHARGE` is a run of `+`/`-` (see [`Charge`](@ref)), the
+[`StringGas`](@ref). `CHARGE` is a run of `+`/`-`, or `0` for an explicit
+neutral (see [`Charge`](@ref)), the
 electronic state is parsed by [`ElectronicState`](@ref), and the `vib=`/`rot=`
 levels by [`parse_quantum_label`](@ref). Whitespace is stripped first.
 
@@ -225,8 +228,8 @@ underscore, a stray bracket — throws: `"N2[+"` is a typo, not a neutral N₂.
 
 `metadata` is stored as-is and never inspected.
 """
-function Species(str::String; metadata=nothing)
-  str = join(map(x -> isspace(str[x]) ? "" : str[x], 1:length(str)))
+function Species(str::AbstractString; metadata=nothing)
+  str = filter(!isspace, str)
   # The gas group accepts braces for mass numbers ("{16}O{1}H") and '-' so the
   # pre-0.3 slug spelling ("16O-1H") reaches `Gas`, which rejects it with a
   # message, instead of failing here as a generic parse error. Anchored at both
@@ -236,7 +239,7 @@ function Species(str::String; metadata=nothing)
   # an electronic state. `vib=` and `rot=` may each appear without the fields
   # before them, but only at a field boundary: the lookbehind requires '[' or
   # ',' right before the keyword, so "N2[Xvib=1]" is still an error.
-  regex = r"(^[A-Za-z0-9{}\-]*)(?:\[([+\-]+)?,?([^,\]=]+)?(?:,?(?<=[\[,])vib=(\([^\)]*\)|[^,\]]*))?(?:,?(?<=[\[,])rot=(\([^\)]*\)|[^,\]]*))?\])?$"
+  regex = r"(^[A-Za-z0-9{}\-]*)(?:\[([+\-]+|0)?,?([^,\]=]+)?(?:,?(?<=[\[,])vib=(\([^\)]*\)|[^,\]]*))?(?:,?(?<=[\[,])rot=(\([^\)]*\)|[^,\]]*))?\])?$"
   matched = match(regex, str)
   isnothing(matched) && error(
     """Cannot parse species string $(repr(str)). Expected \
@@ -439,7 +442,7 @@ the `"a-b"` (`0-4`) syntax `parse_quantum_label` accepts; every other
 format_quantum_label(r::UnitRange{Int}) = "$(first(r))-$(last(r))"
 format_quantum_label(x) = string(x)
 
-# Every combination of set fields prints in the form `Species(::String)` parses
+# Every combination of set fields prints in the form `Species(::AbstractString)` parses
 # back, including a level without its parent (`N2[vib=1]`, `N2[X,rot=3]`).
 function Base.show(io::IO, sp::Species)
   fields = String[]

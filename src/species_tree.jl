@@ -1,6 +1,5 @@
 using AbstractTrees
 
-using Base: setindex
 """
     SpeciesTree(sp::Species)
     SpeciesTree(str::String)
@@ -60,10 +59,14 @@ function SpeciesTree(sp::Species)
     end
     return SpeciesTree(nothing, [t])
 end
-SpeciesTree(str::String) = SpeciesTree(Species(str))
-SpeciesTree(str::Vector{String}) = merge!(SpeciesTree.(str)...)
-SpeciesTree(str::String...) = SpeciesTree(String[str...])
-SpeciesTree(sps::Vector{<:Species}) = merge!(SpeciesTree.(sps)...)
+SpeciesTree(str::AbstractString) = SpeciesTree(Species(str))
+# An empty list is a bare root, so a tree can be built up with `push!`.
+SpeciesTree() = SpeciesTree(nothing, SpeciesTree[])
+SpeciesTree(str::Vector{<:AbstractString}) =
+    isempty(str) ? SpeciesTree() : merge!(SpeciesTree.(str)...)
+SpeciesTree(str::AbstractString...) = SpeciesTree(collect(str))
+SpeciesTree(sps::Vector{<:Species}) =
+    isempty(sps) ? SpeciesTree() : merge!(SpeciesTree.(sps)...)
 SpeciesTree(sps::Species...) = SpeciesTree(Species[sps...])
 
 """
@@ -145,7 +148,8 @@ Base.setindex!(t::SpeciesTree, tn::SpeciesTree, s::String) = setindex!(t, tn, Sp
 Every leaf species of `t`, in tree order. These are the most resolved states in
 the hierarchy — the ones a model carries as unknowns.
 """
-leaves(t::SpeciesTree) = Leaves(t) |> collect .|> nodevalue
+# A childless root is a leaf to AbstractTrees, but holds no species.
+leaves(t::SpeciesTree) = Species[nodevalue(l) for l in Leaves(t) if !isnothing(nodevalue(l))]
 
 """
     matching_leaves(t::SpeciesTree, formula::Species) -> Vector{Species}
@@ -193,6 +197,7 @@ sets.
 function apply_energy!(tr, energy)
     for l in AbstractTrees.Leaves(tr)
         species = l.x
+        isnothing(species) && continue   # empty tree: the root is its own leaf
         l.x = with_fields(
             species,
             energy = energy(
