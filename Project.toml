@@ -5,7 +5,6 @@ authors = ["Jan Kuhfeld <jan.kuhfeld@rub.de> and contributors"]
 
 [deps]
 AbstractTrees = "1520ce14-60c1-5f80-bbc7-55ef81b5835c"
-SafeTestsets = "1bc83da4-3b8d-516f-aca4-4fe02f6d838f"
 
 [weakdeps]
 Catalyst = "479239e8-5488-4da2-87a7-35f2df7eef83"
@@ -13,9 +12,17 @@ Catalyst = "479239e8-5488-4da2-87a7-35f2df7eef83"
 [extensions]
 PlasmaSpeciesCatalystExt = "Catalyst"
 
+[compat]
+AbstractTrees = "0.4"
+Catalyst = "14, 15, 16"
+SafeTestsets = "0.1"
+Test = "1"
+julia = "1.10"
+
 [extras]
 Catalyst = "479239e8-5488-4da2-87a7-35f2df7eef83"
+SafeTestsets = "1bc83da4-3b8d-516f-aca4-4fe02f6d838f"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
 [targets]
-test = ["Catalyst", "Test"]
+test = ["Catalyst", "SafeTestsets", "Test"]
