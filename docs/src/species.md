@@ -23,7 +23,7 @@ Every bracketed field is optional, but the order is fixed.
 
 | Field | Syntax | Becomes |
 |---|---|---|
-| `GAS` | `N2`, `CO2`, `16O-1H`, `e` | a [`Gas`](@ref) — see [Gases and masses](gases.md) |
+| `GAS` | `N2`, `CO2`, `{16}O{1}H`, `e` | a [`Gas`](@ref) — see [Gases and masses](gases.md) |
 | `CHARGE` | `+`, `++`, `-`, `0`, omitted | [`Positive`](@ref), [`Negative`](@ref), [`Neutral`](@ref) |
 | `ELECTRONIC` | `X`, `a''`, `B3Pig` | an [`ElectronicState`](@ref) |
 | `vib=`, `rot=` | `0`, `0-4`, `(0,1,0)`, `(v1=1,v2=0)`, `asym` | a [`QuantumLabel`](@ref) |

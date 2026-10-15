@@ -32,19 +32,50 @@ end
     @test symbols("Ne") == [:Ne]
 end
 
-@testset "isotope slugs" begin
-    for s in ("14N2", "16O-1H", "12C-16O2", "28Si-16O", "13C-1H4", "16O")
+@testset "braced mass numbers" begin
+    for s in ("{14}N2", "{16}O{1}H", "{12}C{16}O2", "{28}Si{16}O", "{13}C{1}H4", "{16}O", "{13}CO2")
         g = parse_formula(s)
         @test g isa Molecule
-        @test string(g) == s          # round-trips in ExoMol iso_slug spelling
+        @test string(g) == s          # round-trips in the braced spelling
         @test isfinite(mass(g))
     end
-    # A mass number attaches to the nuclide, a trailing digit is a count.
-    g = parse_formula("12C-16O2")
+    # A braced number is the mass number of the symbol after it, a trailing
+    # digit is a count.
+    g = parse_formula("{12}C{16}O2")
     @test [(PlasmaSpecies.symbol(n), PlasmaSpecies.mass_number(n), c) for (n, c) in composition(g)] ==
           [(:C, 12, 1), (:O, 16, 2)]
-    # Natural-abundance nuclides have no mass number.
+    # Natural-abundance nuclides have no mass number, and mix with labelled ones.
     @test all(isnothing ∘ PlasmaSpecies.mass_number ∘ first, composition(parse_formula("CO2")))
+    @test [PlasmaSpecies.mass_number(n) for (n, _) in composition(parse_formula("{13}CO2"))] == [13, nothing]
+    # A brace must label a symbol.
+    for s in ("{14}", "{14}2", "{}N", "N{14}", "{a}N")
+        @test isnothing(parse_formula(s))
+    end
+end
+
+@testset "legacy isotope spelling is rejected" begin
+    for s in ("14N2", "16O-1H", "12C-16O2", "O-1H", "16O")
+        @test isnothing(parse_formula(s))
+        @test_throws ArgumentError Gas(s)
+        @test_throws ArgumentError Species(s)
+    end
+    # Labels that merely contain digits or dashes are still StringGas.
+    for s in ("N2-", "Ar-site", "x1", "-")
+        @test Gas(s) isa StringGas
+    end
+end
+
+@testset "ExoMol iso_slug interop" begin
+    for (slug, braced) in ("16O-1H" => "{16}O{1}H", "12C-16O2" => "{12}C{16}O2",
+                           "28Si-16O" => "{28}Si{16}O", "14N2" => "{14}N2")
+        g = from_iso_slug(slug)
+        @test g == parse_formula(braced)
+        @test string(g) == braced
+        @test iso_slug(g) == slug
+    end
+    @test_throws ArgumentError from_iso_slug("O-1H")      # no mass number
+    @test_throws ArgumentError from_iso_slug("99N")       # unknown nuclide
+    @test_throws ArgumentError iso_slug(parse_formula("{13}CO2"))  # not fully resolved
 end
 
 @testset "fallback to StringGas" begin
@@ -73,31 +104,31 @@ end
 
     # Different gases stay different.
     @test Species("CO") != Species("Co")
-    @test Species("N2") != Species("14N2")
+    @test Species("N2") != Species("{14}N2")
 end
 
 @testset "pretty display" begin
     @test sprint(show, gas(Species("N2"))) == "N₂"
     @test sprint(show, gas(Species("CO2"))) == "CO₂"
-    @test sprint(show, gas(Species("16O-1H"))) == "¹⁶O¹H"
+    @test sprint(show, gas(Species("{16}O{1}H"))) == "¹⁶O¹H"
     # print stays plain ASCII — LoKI-B round-tripping depends on it
     @test sprint(print, gas(Species("N2"))) == "N2"
-    @test sprint(print, gas(Species("16O-1H"))) == "16O-1H"
+    @test sprint(print, gas(Species("{16}O{1}H"))) == "{16}O{1}H"
 end
 
-@testset "isotope slugs survive the species parser" begin
-    # A dash in the gas token must not cut off the charge or state fields.
-    sp = Species("16O-1H[+]")
-    @test string(gas(sp)) == "16O-1H"
+@testset "braced mass numbers survive the species parser" begin
+    # Braces in the gas token must not cut off the charge or state fields.
+    sp = Species("{16}O{1}H[+]")
+    @test string(gas(sp)) == "{16}O{1}H"
     @test charge(sp) == Positive(1)
 
-    sp2 = Species("12C-16O2[X,vib=(0,1,0)]")
-    @test string(gas(sp2)) == "12C-16O2"
+    sp2 = Species("{12}C{16}O2[X,vib=(0,1,0)]")
+    @test string(gas(sp2)) == "{12}C{16}O2"
     @test label(electronic_state(sp2)) == :X
     @test vibrational_state(sp2) == (0, 1, 0)
 
     for s in ("N2", "N2[+]", "N2[+,B,vib=3,rot=1]", "O2[X,vib=0]",
-              "CO2[X,vib=(1,0,0)]", "Ar[++]", "H2O", "16O-1H", "e")
+              "CO2[X,vib=(1,0,0)]", "Ar[++]", "H2O", "{16}O{1}H", "{14}N2[+]", "e")
         @test Species(string(Species(s))) == Species(s)
     end
 end

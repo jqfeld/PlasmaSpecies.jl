@@ -51,13 +51,15 @@ end
 end
 
 @testset "isotopes" begin
-    @test mass(Species("14N")) ≈ 14.00307400443 * U rtol = 1.0e-9
-    @test mass(Species("12C")) ≈ 12.0 * U rtol = 1.0e-12
-    @test mass(Species("14N2")) ≈ 2 * 14.00307400443 * U rtol = 1.0e-9
+    @test mass(Species("{14}N")) ≈ 14.00307400443 * U rtol = 1.0e-9
+    @test mass(Species("{12}C")) ≈ 12.0 * U rtol = 1.0e-12
+    @test mass(Species("{14}N2")) ≈ 2 * 14.00307400443 * U rtol = 1.0e-9
 
     # Lighter than the natural mixture, which carries heavier minor isotopes.
-    @test mass(Species("14N2")) < mass(Species("N2"))
+    @test mass(Species("{14}N2")) < mass(Species("N2"))
 
+    # Deuterium and tritium resolve without a mass number, and print with one.
+    @test string(gas(Species("D2"))) == "{2}H2"
     # Deuterium and tritium resolve without a mass number.
     @test mass(Species("D")) ≈ 2.01410177784 * U rtol = 1.0e-9
     @test mass(Species("T")) ≈ 3.01604927790 * U rtol = 1.0e-9
@@ -65,9 +67,9 @@ end
 
     # Independent cross-check: ExoMol's own .def file gives SiO's isotopologue
     # mass as 43.971842 Da (asserted in SpectraUtils.jl's test_exomol.jl).
-    @test mass(Species("28Si-16O")) ≈ 43.971842 * U rtol = 1.0e-6
-    @test mass(Species("16O-1H")) ≈ (15.99491461957 + 1.00782503190) * U rtol = 1.0e-9
-    @test mass(Species("12C-16O2")) ≈ (12.0 + 2 * 15.99491461957) * U rtol = 1.0e-9
+    @test mass(Species("{28}Si{16}O")) ≈ 43.971842 * U rtol = 1.0e-6
+    @test mass(Species("{16}O{1}H")) ≈ (15.99491461957 + 1.00782503190) * U rtol = 1.0e-9
+    @test mass(Species("{12}C{16}O2")) ≈ (12.0 + 2 * 15.99491461957) * U rtol = 1.0e-9
 end
 
 @testset "unresolvable gases still throw" begin
@@ -75,6 +77,6 @@ end
     @test_throws ErrorException mass(Species("Xx"))
     # Unknown *isotope* of a known element: the element table has N, the
     # isotope table has no N-99.
-    @test gas(Species("99N")) isa StringGas
-    @test_throws ErrorException mass(Species("99N"))
+    @test gas(Species("{99}N")) isa StringGas
+    @test_throws ErrorException mass(Species("{99}N"))
 end

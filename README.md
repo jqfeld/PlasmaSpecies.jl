@@ -74,17 +74,23 @@ julia> gas(Species("H2O")), gas(Species("SF6"))
 ```
 
 A bare element symbol means natural isotopic abundance (`N2` is 2 × 14.007 u),
-which is what LoKI-B and BOLSIG+ assume for a bulk gas. Write a specific
-isotopologue with ExoMol's `iso_slug` spelling, which lines these strings up
-with `ExoMol.jl`'s `load_isotopologue`:
+which is what LoKI-B and BOLSIG+ assume for a bulk gas. A mass number in braces
+before a symbol selects one nuclide, so a coefficient in a reaction is never
+mistaken for one (`2{16}O{1}H` is two ¹⁶O¹H):
 
 ```julia
-julia> mass(Species("28Si-16O")) / 1.66053906660e-27
+julia> mass(Species("{28}Si{16}O")) / 1.66053906660e-27
 43.97184115422001
 
-julia> gas(Species("16O-1H"))
+julia> gas(Species("{16}O{1}H"))
 ¹⁶O¹H
+
+julia> iso_slug(gas(Species("{16}O{1}H"))), gas(Species(from_iso_slug("12C-16O2")))
+("16O-1H", ¹²C¹⁶O₂)
 ```
+
+`iso_slug`/`from_iso_slug` convert to and from ExoMol's spelling, so species
+still line up with `ExoMol.jl`'s `load_isotopologue`.
 
 Labels that are not resolvable formulas still parse and round-trip — they just
 have no mass.
