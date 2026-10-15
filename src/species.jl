@@ -217,6 +217,7 @@ Species("N2[X,vib=0,rot=10]")
 Species("N2[X,vib=0-4]")      # a lumped range of levels
 Species("CO2[X,vib=(0,1,0)]") # normal modes of a polyatomic
 Species("{16}O{1}H")          # a specific isotopologue
+Species("N2[vib=1]")          # a level without its electronic state
 ```
 
 The gas token accepts letters, digits, braces and `-`. Anything else — an
@@ -230,7 +231,12 @@ function Species(str::String; metadata=nothing)
   # pre-0.3 slug spelling ("16O-1H") reaches `Gas`, which rejects it with a
   # message, instead of failing here as a generic parse error. Anchored at both
   # ends so trailing or malformed text is an error.
-  regex = r"(^[A-Za-z0-9{}\-]*)(?:\[([+\-]+)?,?([^,\]]+)?(?:,vib=(\([^\)]*\)|[^,\]]*)(?:,rot=(\([^\)]*\)|[^,\]]*))?)?\])?$"
+  #
+  # The electronic label excludes '=', so "N2[vib=1]" cannot swallow "vib=1" as
+  # an electronic state. `vib=` and `rot=` may each appear without the fields
+  # before them, but only at a field boundary: the lookbehind requires '[' or
+  # ',' right before the keyword, so "N2[Xvib=1]" is still an error.
+  regex = r"(^[A-Za-z0-9{}\-]*)(?:\[([+\-]+)?,?([^,\]=]+)?(?:,?(?<=[\[,])vib=(\([^\)]*\)|[^,\]]*))?(?:,?(?<=[\[,])rot=(\([^\)]*\)|[^,\]]*))?\])?$"
   matched = match(regex, str)
   isnothing(matched) && error(
     """Cannot parse species string $(repr(str)). Expected \
@@ -433,31 +439,18 @@ the `"a-b"` (`0-4`) syntax `parse_quantum_label` accepts; every other
 format_quantum_label(r::UnitRange{Int}) = "$(first(r))-$(last(r))"
 format_quantum_label(x) = string(x)
 
+# Every combination of set fields prints in the form `Species(::String)` parses
+# back, including a level without its parent (`N2[vib=1]`, `N2[X,rot=3]`).
 function Base.show(io::IO, sp::Species)
-  out = string(gas(sp))
-  open_bracket = false
-  if !(charge(sp) isa Neutral) && string(gas(sp)) != "e"
-    open_bracket = true
-    out *= "[$(charge(sp))"
-  end
-  if !isnothing(electronic_state(sp))
-    out *= !open_bracket ? "[" : ","
-    open_bracket = true
-    out *= string(electronic_state(sp))
-  end
-  if isnothing(vibrational_state(sp))
-    out *= open_bracket ? "]" : ""
-    return Base.print(io, out)
-  else
-    out *= ",vib=" * format_quantum_label(vibrational_state(sp))
-  end
-  if isnothing(rotational_state(sp))
-    out *= open_bracket ? "]" : ""
-    return Base.print(io, out)
-  else
-    out *= ",rot=" * format_quantum_label(rotational_state(sp)) * "]"
-  end
-  Base.print(io, out)
+  fields = String[]
+  charge(sp) isa Neutral || gas(sp) isa Electron || push!(fields, string(charge(sp)))
+  isnothing(electronic_state(sp)) || push!(fields, string(electronic_state(sp)))
+  isnothing(vibrational_state(sp)) ||
+    push!(fields, "vib=" * format_quantum_label(vibrational_state(sp)))
+  isnothing(rotational_state(sp)) ||
+    push!(fields, "rot=" * format_quantum_label(rotational_state(sp)))
+  print(io, gas(sp))
+  isempty(fields) || print(io, '[', join(fields, ','), ']')
 end
 
 # Sorting
@@ -501,14 +494,16 @@ function Base.isless(a::Species, b::Species)
     return isless(gas(a), gas(b))
   end
 
-  if electronic_state(a) != electronic_state(b)
-    if electronic_state(a) == "X"
-      return true
-    end
-    if electronic_state(b) == "X"
-      return false
-    end
-    return isless(electronic_state(a), electronic_state(b))
+  # Within a gas, a resolved state sorts before an unresolved one at every
+  # level (electronic, vib, rot), and the ground state X before other
+  # electronic states.
+  ea, eb = electronic_state(a), electronic_state(b)
+  if ea != eb
+    isnothing(ea) && return false
+    isnothing(eb) && return true
+    label(ea) == :X && return true
+    label(eb) == :X && return false
+    return isless(ea, eb)
   end
 
   if vibrational_state(a) != vibrational_state(b)

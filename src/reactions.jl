@@ -80,6 +80,28 @@ function get_stoich(v::AbstractString)
 end
 remove_stoich(s::AbstractString) = replace(s, r"^\d+(?:\.\d+)?" => s"")
 
+# Split one side of a reaction into terms at every '+' outside brackets, so any
+# charge ("N2[+]", "Ar[+++]", "N2[+,B]") stays inside its species.
+function split_terms(side::AbstractString)
+  terms = SubString{String}[]
+  s = String(side)
+  depth = 0
+  start = firstindex(s)
+  for i in eachindex(s)
+    c = s[i]
+    if c == '['
+      depth += 1
+    elseif c == ']'
+      depth -= 1
+    elseif c == '+' && depth == 0
+      push!(terms, SubString(s, start, prevind(s, i)))
+      start = nextind(s, i)
+    end
+  end
+  push!(terms, SubString(s, start, lastindex(s)))
+  return terms
+end
+
 # Keep stoichiometry vectors concretely typed: all-Int stays Int, any
 # fractional coefficient promotes the whole vector to Float64.
 normalize_stoich(v) = all(x -> x isa Integer, v) ? Int.(v) : Float64.(v)
@@ -155,8 +177,8 @@ function parse_reaction(str)
   # Split on the arrow that actually matched, so "<-->" does not leave a stray
   # '<' on the left-hand side.
   lhs, rhs = dir == "<--" ? split(str, dir)[end:-1:1] : split(str, dir)
-  substrates_str = split(lhs, r"(?<!\[|,)\+(?!,|\]|\s\]|\s,)")
-  products_str = split(rhs, r"(?<!\[|,)\+(?!,|\]|\s\]|\s,)")
+  substrates_str = split_terms(lhs)
+  products_str = split_terms(rhs)
   substoich = normalize_stoich(get_stoich.(substrates_str))
   prodstoich = normalize_stoich(get_stoich.(products_str))
   subs = Species.(remove_stoich.(substrates_str))
