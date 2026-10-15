@@ -215,6 +215,11 @@ end
     @test Dict(string.(r2.prods) .=> r2.prodstoich) == Dict("12C-16O" => 2, "16O-16O" => 1)
     @test PlasmaSpecies.ismassbalanced(r2)
 
+    # a fractional coefficient in front of a slug
+    r4 = parse_reaction("16O-1H --> 0.516O-16O + 0.51H-1H")
+    @test Dict(string.(r4.prods) .=> r4.prodstoich) == Dict("16O-16O" => 0.5, "1H-1H" => 0.5)
+    @test PlasmaSpecies.ismassbalanced(r4)
+
     # without a '-', leading digits stay a coefficient
     r3 = parse_reaction("2H2 + O2 --> 2H2O")
     @test Dict(string.(r3.subs) .=> r3.substoich) == Dict("H2" => 2, "O2" => 1)

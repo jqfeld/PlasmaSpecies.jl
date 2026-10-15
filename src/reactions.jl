@@ -88,13 +88,18 @@ remove_stoich(s::AbstractString) = replace(s, r"^\d+(?:\.\d+)?" => s"")
 # coefficient, so single-segment isotopologues ("14N2") must be spelled as a
 # slug ("14N-14N") inside a reaction.
 function split_stoich(term::AbstractString)
-  m = match(r"^(\d+)([A-Z][a-z]?)", term)
+  # An optional "N." integer part, so fractional coefficients ("0.516O-1H")
+  # split the same way: the fraction needs at least one digit.
+  m = match(r"^(\d+\.)?(\d+)([A-Z][a-z]?)", term)
   if !isnothing(m) && occursin('-', first(split(term, '[')))
-    digits, sym = m[1], Symbol(m[2])
-    for i in 0:length(digits)-1
+    int_part = something(m[1], "")
+    digits, sym = m[2], Symbol(m[3])
+    for i in (isempty(int_part) ? 0 : 1):length(digits)-1
       isnothing(isotope(sym, parse(Int, digits[i+1:end]))) && continue
-      stoich = i == 0 ? 1 : parse(Int, digits[1:i])
-      return stoich, term[i+1:end]
+      coef = int_part * digits[1:i]
+      stoich = isempty(coef) ? 1 :
+               occursin('.', coef) ? parse(Float64, coef) : parse(Int, coef)
+      return stoich, term[length(int_part)+i+1:end]
     end
   end
   return get_stoich(term), remove_stoich(term)
