@@ -219,7 +219,7 @@ end
     end
     # Well-formed strings are unaffected.
     for s in ("e", "N2", "N2[+]", "N2[+,B,vib=3,rot=1]", "O2[X,vib=0]",
-              "CO2[X,vib=(1,0,0)]", "Ar[++]", "16O-1H[+]", "N2[X,vib=0-4]")
+              "CO2[X,vib=(1,0,0)]", "Ar[++]", "{16}O{1}H[+]", "N2[X,vib=0-4]")
         @test Species(string(Species(s))) == Species(s)
     end
 end

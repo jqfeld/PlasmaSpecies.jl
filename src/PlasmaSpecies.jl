@@ -10,7 +10,7 @@ export ispositive, isnegative, isneutral
 include("gas.jl")
 export Gas, StringGas, Electron, Molecule
 export Nuclide, Element, Isotope, ELEMENTS, ISOTOPES
-export parse_formula, composition, canonical_composition
+export parse_formula, composition, canonical_composition, iso_slug, from_iso_slug
 export element, isotope, atomic_number, mass_number
 
 include("electronic_state.jl")

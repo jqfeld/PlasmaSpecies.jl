@@ -216,21 +216,21 @@ Species("N2[+,B]")
 Species("N2[X,vib=0,rot=10]")
 Species("N2[X,vib=0-4]")      # a lumped range of levels
 Species("CO2[X,vib=(0,1,0)]") # normal modes of a polyatomic
-Species("16O-1H")             # a specific isotopologue
+Species("{16}O{1}H")          # a specific isotopologue
 ```
 
-The gas token accepts letters, digits and `-`, so ExoMol-style isotope slugs
-stay one token. Anything else — an underscore, a stray bracket — throws:
-`"N2[+"` is a typo, not a neutral N₂.
+The gas token accepts letters, digits, braces and `-`. Anything else — an
+underscore, a stray bracket — throws: `"N2[+"` is a typo, not a neutral N₂.
 
 `metadata` is stored as-is and never inspected.
 """
 function Species(str::String; metadata=nothing)
   str = join(map(x -> isspace(str[x]) ? "" : str[x], 1:length(str)))
-  # The gas group accepts '-' so ExoMol-style isotope slugs ("16O-1H",
-  # "12C-16O2") stay a single token instead of being cut at the first dash.
-  # Anchored at both ends so trailing or malformed text is an error.
-  regex = r"(^[A-Za-z0-9\-]*)(?:\[([+\-]+)?,?([^,\]]+)?(?:,vib=(\([^\)]*\)|[^,\]]*)(?:,rot=(\([^\)]*\)|[^,\]]*))?)?\])?$"
+  # The gas group accepts braces for mass numbers ("{16}O{1}H") and '-' so the
+  # pre-0.3 slug spelling ("16O-1H") reaches `Gas`, which rejects it with a
+  # message, instead of failing here as a generic parse error. Anchored at both
+  # ends so trailing or malformed text is an error.
+  regex = r"(^[A-Za-z0-9{}\-]*)(?:\[([+\-]+)?,?([^,\]]+)?(?:,vib=(\([^\)]*\)|[^,\]]*)(?:,rot=(\([^\)]*\)|[^,\]]*))?)?\])?$"
   matched = match(regex, str)
   isnothing(matched) && error(
     """Cannot parse species string $(repr(str)). Expected \

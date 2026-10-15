@@ -27,7 +27,8 @@ gas(Species("Xyz"))
 
 ## Formula syntax
 
-[`parse_formula`](@ref) accepts three spellings.
+[`parse_formula`](@ref) reads a run of segments, each an element symbol with an
+optional mass number in braces before it and an optional count after it.
 
 **Natural abundance.** Bare element symbols, optionally with counts. Each
 resolves to an [`Element`](@ref), i.e. the standard atomic weight — `N2` is
@@ -37,15 +38,27 @@ resolves to an [`Element`](@ref), i.e. the standard atomic weight — `N2` is
 composition(gas(Species("CH4")))
 ```
 
-**A single isotopic segment.** A mass number in front: `"14N2"`, `"16O"`.
-
-**ExoMol `iso_slug`.** Segments joined by `-`, matching the spelling
-`ExoMol.jl` uses, so species strings line up with `load_isotopologue` slugs.
+**Specific nuclides.** A mass number in braces in front of the symbol it
+labels: `"{14}N2"`, `"{16}O{1}H"`, `"{12}C{16}O2"`. Labelled and
+natural-abundance atoms mix freely: `"{13}CO2"`.
 
 ```@repl gases
-gas(Species("16O-1H"))
-gas(Species("12C-16O2"))
-string(gas(Species("16O-1H")))
+gas(Species("{16}O{1}H"))
+gas(Species("{13}CO2"))
+string(gas(Species("{16}O{1}H")))
+```
+
+The braces keep a mass number distinct from a stoichiometric coefficient, so
+`2{16}O{1}H` in a reaction is two ¹⁶O¹H. The pre-0.3 spelling with a bare
+mass number (`"14N2"`, `"16O-1H"`) is rejected with an error pointing here.
+
+**ExoMol interop.** [`iso_slug`](@ref) and [`from_iso_slug`](@ref) convert to
+and from ExoMol's `iso_slug` spelling (`"16O-1H"`), the form `ExoMol.jl`'s
+`load_isotopologue` takes.
+
+```@repl gases
+iso_slug(gas(Species("{12}C{16}O2")))
+from_iso_slug("28Si-16O")
 ```
 
 Two display forms: `print`/`string` is plain ASCII and preserves the written
@@ -62,8 +75,8 @@ gas(Species("Co"))   # cobalt
 
 A formula that does not resolve — unknown symbol, unknown isotope, leftover
 text — falls back to [`StringGas`](@ref) rather than throwing. Note that the
-species parser only accepts letters, digits and `-` in the gas token, so a
-label like `"my_gas"` is a parse error, while `"mygas"` is a `StringGas`.
+species parser only accepts letters, digits, braces and `-` in the gas token,
+so a label like `"my_gas"` is a parse error, while `"mygas"` is a `StringGas`.
 
 ## Composition and equality
 
@@ -85,7 +98,7 @@ by the charge are added or removed.
 
 ```@repl gases
 mass(Species("CO2")) / PlasmaSpecies.U_KG   # in daltons
-mass(Species("28Si-16O")) / PlasmaSpecies.U_KG
+mass(Species("{28}Si{16}O")) / PlasmaSpecies.U_KG
 mass(Species("N2[+]")) == mass(Species("N2")) - mass(Species("e"))
 ```
 

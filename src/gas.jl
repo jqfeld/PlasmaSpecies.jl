@@ -36,11 +36,19 @@ Resolve a gas label, in three steps:
    [`Molecule`](@ref) that knows its own mass;
 3. otherwise [`StringGas`](@ref), so an unrecognised label still parses,
    prints and round-trips — it just cannot be weighed.
+
+A label in the pre-0.3 isotope spelling — a bare mass number, as in `"14N2"` or
+`"16O-1H"` — throws rather than becoming a massless `StringGas`; write
+`"{14}N2"`, or convert a slug with [`from_iso_slug`](@ref).
 """
 function Gas(x)
   haskey(REGISTERED_GASES, x) && return REGISTERED_GASES[x]()
   parsed = parse_formula(x)
   isnothing(parsed) || return parsed
+  is_legacy_isotope_spelling(x) && throw(ArgumentError(
+    """$(repr(x)) looks like the old isotope spelling. Since 0.3 a mass number is
+    written in braces before its symbol: "14N2" is "{14}N2", "16O-1H" is
+    "{16}O{1}H". For an ExoMol iso_slug use `from_iso_slug($(repr(x)))`."""))
   return StringGas(x)
 end
 

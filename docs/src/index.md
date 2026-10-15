@@ -19,7 +19,7 @@ physics: no rate coefficients, no transport, no solver.
   (`"N2[+,B,vib=3]"`), with a `p"..."` macro for both species and reactions.
 - **Gases resolved from chemical formulas** — anything built from known
   nuclides works without registration and knows its own mass, natural-abundance
-  (`"CO2"`) or isotopically specific (`"12C-16O2"`).
+  (`"CO2"`) or isotopically specific (`"{12}C{16}O2"`).
 - **[`SpeciesTree`](@ref)** — the parent/child hierarchy relating bulk `N2` to
   `N2[X]` to `N2[X,vib=1]`, with the leaves as the states a model integrates.
 - **[`ReactionFormula`](@ref) / [`PlasmaReaction`](@ref)** — parsed reactions,

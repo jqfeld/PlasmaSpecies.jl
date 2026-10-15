@@ -22,7 +22,7 @@ atomic weight in daltons (IUPAC 2021 conventional values).
 
 A bare element symbol in a formula resolves to this, so `"N2"` is two
 natural-abundance nitrogens (2 × 14.007 u), which is what LoKI-B and BOLSIG+
-assume for a bulk gas. Give a mass number (`"14N2"`) for a single nuclide.
+assume for a bulk gas. Give a mass number (`"{14}N2"`) for a single nuclide.
 """
 struct Element <: Nuclide
   symbol::Symbol
@@ -72,7 +72,7 @@ mass_number(::Element) = nothing
 mass_number(n::Isotope) = n.A
 
 Base.print(io::IO, n::Element) = print(io, n.symbol)
-Base.print(io::IO, n::Isotope) = print(io, n.A, n.symbol)
+Base.print(io::IO, n::Isotope) = print(io, '{', n.A, '}', n.symbol)
 Base.show(io::IO, n::Element) = print(io, n.symbol)
 Base.show(io::IO, n::Isotope) = print(io, superscript(n.A), n.symbol)
 

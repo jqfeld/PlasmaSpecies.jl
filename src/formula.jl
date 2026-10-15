@@ -59,17 +59,13 @@ mass(g::Molecule) = sum(n * mass(nuc) for (nuc, n) in g.composition)
 Base.:(==)(a::Molecule, b::Molecule) = a.canonical == b.canonical
 Base.hash(g::Molecule, h::UInt) = hash(g.canonical, hash(:Molecule, h))
 
-# Plain ASCII, which LoKI-B string round-tripping relies on. Isotope segments
-# are '-'-joined per the ExoMol iso_slug spelling ("16O-1H"); "16O1H" would be
-# ambiguous.
+# Plain ASCII, which LoKI-B string round-tripping relies on. A nuclide prints
+# its mass number in braces ("{16}O{1}H"), the same spelling `parse_formula`
+# reads, so no separator is needed between segments.
 function Base.print(io::IO, g::Molecule)
-  isotopic = any(p -> first(p) isa Isotope, g.composition)
-  first_seg = true
   for (nuc, n) in g.composition
-    isotopic && !first_seg && print(io, '-')
     print(io, nuc)
     n == 1 || print(io, n)
-    first_seg = false
   end
 end
 
@@ -80,10 +76,13 @@ function Base.show(io::IO, g::Molecule)
   end
 end
 
-# A formula segment: optional mass number, element symbol, optional count.
-const SEGMENT_RE = r"^(\d+)?([A-Z][a-z]?)(\d+)?$"
-# Repeated-segment scan for a plain (non-isotopic) formula.
-const PLAIN_SEGMENT_RE = r"([A-Z][a-z]?)(\d+)?"
+# One formula segment: optional braced mass number, element symbol, optional
+# count. Scanned repeatedly from the start of the string.
+const SEGMENT_RE = r"(?:\{(\d+)\})?([A-Z][a-z]?)(\d+)?"
+# The pre-0.3 isotope spelling (a bare mass number: "14N2", "16O-1H"), which
+# `Gas` rejects with a pointer to the new one rather than silently returning a
+# massless `StringGas`.
+const LEGACY_ISOTOPE_RE = r"^(?:\d*[A-Z][a-z]?\d*)(?:-\d*[A-Z][a-z]?\d*)*$"
 
 """
     parse_formula(s) -> Union{Molecule,Nothing}
@@ -93,63 +92,81 @@ does not resolve — unknown element symbol, unknown isotope, or leftover text.
 Returning `nothing` rather than throwing lets [`Gas`](@ref) fall back to
 `StringGas`.
 
-Three spellings are accepted:
+A formula is a run of segments, each an element symbol with an optional mass
+number in braces before it and an optional count after it:
 
 - **Natural abundance**: `"Ar"`, `"N2"`, `"CO2"`, `"H2O"`, `"CH4"`. Every
   symbol resolves to an [`Element`](@ref), i.e. the standard atomic weight.
-- **A single isotopic segment**: `"14N2"`, `"16O"`.
-- **ExoMol `iso_slug`**: `"16O-1H"`, `"12C-16O2"`, `"28Si-16O"` — segments
-  joined by `-`. Matches the spelling `ExoMol.jl` uses, so species strings line
-  up with `load_isotopologue` slugs.
+- **Specific nuclides**: `"{14}N2"`, `"{16}O{1}H"`, `"{12}C{16}O2"`. The
+  braced number is the mass number of the symbol that follows.
+- **Mixed**: `"{13}CO2"` — one labelled atom, the rest at natural abundance.
+
+The braces keep a mass number distinct from a stoichiometric coefficient, so
+`2{16}O{1}H` in a reaction is unambiguous. For ExoMol's `iso_slug` spelling
+(`"16O-1H"`) see [`from_iso_slug`](@ref) and [`iso_slug`](@ref).
 
 Two-letter symbols match greedily, per the usual chemical convention: `"CO"` is
 carbon monoxide while `"Co"` is cobalt, `"NO"` is N + O while `"No"` is
 nobelium. Case is significant.
 """
 function parse_formula(s::AbstractString)
-  isempty(s) && return nothing
-
-  segments = if occursin('-', s)
-    split(s, '-')
-  elseif isdigit(first(s))
-    [s]
-  else
-    return parse_plain_formula(s)
-  end
-
   nucs = Nuclide[]
   counts = Int[]
-  for seg in segments
-    m = match(SEGMENT_RE, seg)
-    isnothing(m) && return nothing
+  pos = 1
+  while pos <= lastindex(s)
+    m = match(SEGMENT_RE, s, pos)
+    (isnothing(m) || m.offset != pos) && return nothing
     sym = Symbol(m[2])
-    nuc = if isnothing(m[1])
-      element(sym)
-    else
-      isotope(sym, parse(Int, m[1]))
-    end
+    nuc = isnothing(m[1]) ? element(sym) : isotope(sym, parse(Int, m[1]))
     isnothing(nuc) && return nothing
+    push!(nucs, nuc)
+    push!(counts, isnothing(m[3]) ? 1 : parse(Int, m[3]))
+    pos = m.offset + lastindex(m.match)
+  end
+  isempty(nucs) && return nothing
+  return Molecule(_pairs_tuple(nucs, counts))
+end
+
+# Whether `s` is spelled the pre-0.3 way: a bare mass number in front of a
+# symbol, segments optionally '-'-joined. Only strings that would have resolved
+# as isotopes under the old grammar qualify, so ordinary labels pass through.
+is_legacy_isotope_spelling(s::AbstractString) =
+  occursin(LEGACY_ISOTOPE_RE, s) && occursin(r"(?:^|-)\d+[A-Z]", s)
+
+"""
+    from_iso_slug(slug) -> Molecule
+
+Build a gas from an ExoMol `iso_slug` — segments of mass number, symbol and
+optional count joined by `-`, as `ExoMol.jl`'s `load_isotopologue` takes them:
+`"16O-1H"`, `"12C-16O2"`, `"28Si-16O"`. Every segment must carry a mass
+number. Throws `ArgumentError` for a malformed slug or an unknown nuclide.
+Inverse of [`iso_slug`](@ref).
+"""
+function from_iso_slug(slug::AbstractString)
+  nucs = Nuclide[]
+  counts = Int[]
+  for seg in split(slug, '-')
+    m = match(r"^(\d+)([A-Z][a-z]?)(\d+)?$", seg)
+    isnothing(m) && throw(ArgumentError(
+      "$(repr(slug)) is not an ExoMol iso_slug: segment $(repr(seg)) should be <mass number><symbol>[<count>]"))
+    nuc = isotope(Symbol(m[2]), parse(Int, m[1]))
+    isnothing(nuc) && throw(ArgumentError("unknown nuclide $(repr(seg)) in iso_slug $(repr(slug))"))
     push!(nucs, nuc)
     push!(counts, isnothing(m[3]) ? 1 : parse(Int, m[3]))
   end
   return Molecule(_pairs_tuple(nucs, counts))
 end
 
-# `"CO2"` -> C, O2. Scanned rather than split, so the whole string has to be
-# consumed; anything left over means the label is not a formula.
-function parse_plain_formula(s::AbstractString)
-  nucs = Nuclide[]
-  counts = Int[]
-  pos = 1
-  while pos <= lastindex(s)
-    m = match(PLAIN_SEGMENT_RE, s, pos)
-    (isnothing(m) || m.offset != pos) && return nothing
-    nuc = element(Symbol(m[1]))
-    isnothing(nuc) && return nothing
-    push!(nucs, nuc)
-    push!(counts, isnothing(m[2]) ? 1 : parse(Int, m[2]))
-    pos = m.offset + lastindex(m.match)
-  end
-  isempty(nucs) && return nothing
-  return Molecule(_pairs_tuple(nucs, counts))
+"""
+    iso_slug(g::Molecule) -> String
+
+The ExoMol `iso_slug` spelling of a fully isotope-resolved gas, in written
+order: `{16}O{1}H` gives `"16O-1H"`. Throws `ArgumentError` if any nuclide is
+at natural abundance, because a slug names one isotopologue. Inverse of
+[`from_iso_slug`](@ref).
+"""
+function iso_slug(g::Molecule)
+  any(p -> first(p) isa Element, g.composition) && throw(ArgumentError(
+    "$(g) has natural-abundance nuclides; an iso_slug names a single isotopologue"))
+  join(("$(nuc.A)$(nuc.symbol)$(n == 1 ? "" : n)" for (nuc, n) in g.composition), '-')
 end
