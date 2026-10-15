@@ -144,10 +144,10 @@ end
     rxn = ReactionFormula("O[3P] --> 0.5O2[X]")
     @test Dict(string.(rxn.subs) .=> rxn.substoich) == Dict("O[3P]" => 1)
     @test Dict(string.(rxn.prods) .=> rxn.prodstoich) == Dict("O2[X]" => 0.5)
-    # one coefficient type for the whole formula
-    @test rxn isa ReactionFormula{Float64}
+    # each side is typed on its own
+    @test rxn isa ReactionFormula{Int,Float64}
     @test rxn.prodstoich isa Vector{Float64}
-    @test rxn.substoich isa Vector{Float64}
+    @test rxn.substoich isa Vector{Int}
     @test string(rxn) == "O[3P]-->0.5O2[X]"
     @test PlasmaSpecies.ismassbalanced(rxn)
     # integer-only reactions keep Int stoichiometry
@@ -156,14 +156,17 @@ end
 end
 
 @testset "coefficient type and display" begin
-    @test p"2N2 + O2 --> 2N2O" isa ReactionFormula{Int}
+    @test p"2N2 + O2 --> 2N2O" isa ReactionFormula{Int,Int}
     r = p"2H2 + O2 --> 2H2O + 0.5O2"
-    @test r isa ReactionFormula{Float64}
-    @test Dict(string.(r.subs) .=> r.substoich) == Dict("H2" => 2.0, "O2" => 1.0)
+    @test r isa ReactionFormula{Int,Float64}
+    @test r.substoich isa Vector{Int} && r.prodstoich isa Vector{Float64}
+    @test Dict(string.(r.subs) .=> r.substoich) == Dict("H2" => 2, "O2" => 1)
     @test Dict(string.(r.prods) .=> r.prodstoich) == Dict("H2O" => 2.0, "O2" => 0.5)
-    # integral coefficients of a promoted formula print as integers
+    # integral Float64 coefficients print as integers
     @test string(r) == "O2+2H2-->0.5O2+2H2O"
     @test ReactionFormula(string(r)) == r
+    @test string(p"2.0N2 --> 2.0N") == "2N2-->2N"
+    @test p"2.0N2 --> 2N" isa ReactionFormula{Float64,Int}
     # a side needs one coefficient per species
     @test_throws ArgumentError ReactionFormula([Species("N2")], [Species("N2")], [1, 1], [1], false)
 end

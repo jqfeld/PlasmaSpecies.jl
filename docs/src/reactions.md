@@ -31,9 +31,9 @@ parse_reaction("N2[X,vib=1] <-- N2[X,vib=0]")   # normalised to forward
 ```
 
 Coefficients may be fractional, which is common for wall and surface
-reactions. A formula has one coefficient type for both sides: a decimal
-anywhere makes it a `ReactionFormula{Float64}`, otherwise it is a
-`ReactionFormula{Int}`:
+reactions. Each side is typed on its own: a decimal anywhere on a side makes
+that side's coefficients `Float64`, otherwise they stay `Int`, which shows in
+the type parameters:
 
 ```@repl reactions
 f = parse_reaction("O[X] + 0.5O2[X] --> O3")

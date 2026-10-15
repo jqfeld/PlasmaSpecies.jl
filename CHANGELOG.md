@@ -11,10 +11,11 @@
   therefore always the stoichiometric coefficient (`2{16}O{1}H`).
 - ExoMol interop moves to explicit helpers: `iso_slug(::Molecule)` and
   `from_iso_slug(str)`. Isotopes print as `{A}Sym`, so `D2` prints `{2}H2`.
-- `ReactionFormula` is parametrised on its coefficient type,
-  `ReactionFormula{Int}` or `ReactionFormula{Float64}`: a fractional
-  coefficient on either side promotes both. Previously each side was promoted
-  on its own.
+- `ReactionFormula{S,P}` is parametrised on the coefficient type of each side
+  (`ReactionFormula{Int,Float64}` for `O[3P] --> 0.5O2[X]`), with concrete
+  `Vector{Species}` / `Vector{S}` / `Vector{P}` fields instead of untyped ones.
+  Promotion is per side, as before. The constructor rejects a side whose
+  species and coefficient counts differ.
 - The batch forms of `apply_tree` and `to_catalyst` no longer catch errors.
   An error in any reaction is logged with that reaction and rethrown, aborting
   the batch. They return typed vectors

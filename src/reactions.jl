@@ -10,10 +10,9 @@ coefficients, plus whether it is reversible. No rate — pair it with one using
 ## Fields
 
 - `subs`, `prods`: `Vector{Species}`.
-- `substoich`, `prodstoich`: coefficients, `Vector{T}` with `T` the type
-  parameter: `Int` when every coefficient on both sides is an integer,
-  otherwise `Float64` throughout. A formula is `ReactionFormula{Int}` or
-  `ReactionFormula{Float64}`; a single `0.5` anywhere promotes both sides.
+- `substoich::Vector{S}`, `prodstoich::Vector{P}`: coefficients. Each side is
+  typed on its own: `Int` when all its coefficients are integers, otherwise
+  `Float64`, so `O[3P] --> 0.5O2[X]` is a `ReactionFormula{Int,Float64}`.
 - `reverse::Bool`: `true` for `<-->`.
 
 The constructor normalises both sides: repeated species are combined
@@ -29,23 +28,26 @@ canonicalised: a reversible `A <--> B` is not equal to `B <--> A`.
 From a string, see [`parse_reaction`](@ref); the [`@p_str`](@ref) macro is the
 short form.
 """
-struct ReactionFormula{T<:Real}
+struct ReactionFormula{S<:Real,P<:Real}
   subs::Vector{Species}
   prods::Vector{Species}
-  substoich::Vector{T}
-  prodstoich::Vector{T}
+  substoich::Vector{S}
+  prodstoich::Vector{P}
   reverse::Bool
   function ReactionFormula(subs, prods, substoich, prodstoich, reverse)
     length(subs) == length(substoich) && length(prods) == length(prodstoich) ||
       throw(ArgumentError("a reaction side needs one coefficient per species"))
-    # One coefficient type for the whole formula, so both sides can be consumed
-    # together without promotion at every use.
-    T = all(x -> x isa Integer, substoich) && all(x -> x isa Integer, prodstoich) ? Int : Float64
-    subs, substoich = sort_by_species(combine_same(Species[subs...], T[substoich...])...)
-    prods, prodstoich = sort_by_species(combine_same(Species[prods...], T[prodstoich...])...)
-    new{T}(subs, prods, substoich, prodstoich, reverse)
+    S = _stoich_type(substoich)
+    P = _stoich_type(prodstoich)
+    subs, substoich = sort_by_species(combine_same(Species[subs...], S[substoich...])...)
+    prods, prodstoich = sort_by_species(combine_same(Species[prods...], P[prodstoich...])...)
+    new{S,P}(subs, prods, substoich, prodstoich, reverse)
   end
 end
+
+# A side's coefficients are Int when they all are, else Float64: concrete, and
+# an integer side stays exact next to a fractional one.
+_stoich_type(v) = all(x -> x isa Integer, v) ? Int : Float64
 
 # Comparison is field-wise on the *normalised* form, which is why it is this
 # simple: the inner constructor has already combined repeated species and
@@ -131,7 +133,7 @@ function combine_same(sp, stoich)
 end
 
 # A coefficient of 1 is implicit, and an integral Float64 prints as an integer
-# so a promoted formula still reads "2N2", not "2.0N2".
+# so a side written "2.0N2 + 0.5O2" reads back as "2N2+0.5O2".
 function _show_coefficient(io::IO, st)
   isone(st) && return
   isinteger(st) ? print(io, Int(st)) : show(io, st)
@@ -170,10 +172,9 @@ terms by `+`:
 
 Each term is an optional stoichiometric coefficient followed by a species
 string (see [`Species(::AbstractString)`](@ref)). A decimal coefficient
-(`0.5O2[X]`, common in wall reactions) makes every coefficient `Float64`, i.e. a
-`ReactionFormula{Float64}`; otherwise the formula is a `ReactionFormula{Int}`.
-Whitespace is ignored, and a `+` inside brackets (`N2[+]`) is not a term
-separator.
+(`0.5O2[X]`, common in wall reactions) makes that side's coefficients `Float64`;
+the other side keeps `Int` (see [`ReactionFormula`](@ref)). Whitespace is
+ignored, and a `+` inside brackets (`N2[+]`) is not a term separator.
 
 Leading digits are always the coefficient. A mass number is written in braces
 in front of its symbol (see [`parse_formula`](@ref)), so `2{16}O{1}H` is two
@@ -193,7 +194,7 @@ function parse_reaction(str)
   lhs, rhs = dir == "<--" ? split(str, dir)[end:-1:1] : split(str, dir)
   substrates_str = split_terms(lhs)
   products_str = split_terms(rhs)
-  # The constructor combines repeated species, sorts, and picks Int or Float64.
+  # The constructor combines repeated species, sorts, and types each side.
   return ReactionFormula(
     Species.(remove_stoich.(substrates_str)),
     Species.(remove_stoich.(products_str)),
