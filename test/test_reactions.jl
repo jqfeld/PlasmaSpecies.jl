@@ -144,13 +144,28 @@ end
     rxn = ReactionFormula("O[3P] --> 0.5O2[X]")
     @test Dict(string.(rxn.subs) .=> rxn.substoich) == Dict("O[3P]" => 1)
     @test Dict(string.(rxn.prods) .=> rxn.prodstoich) == Dict("O2[X]" => 0.5)
+    # one coefficient type for the whole formula
+    @test rxn isa ReactionFormula{Float64}
     @test rxn.prodstoich isa Vector{Float64}
-    @test rxn.substoich isa Vector{Int}
+    @test rxn.substoich isa Vector{Float64}
     @test string(rxn) == "O[3P]-->0.5O2[X]"
     @test PlasmaSpecies.ismassbalanced(rxn)
     # integer-only reactions keep Int stoichiometry
     plain = ReactionFormula("N2 + e --> N2[+] + 2e")
     @test plain.substoich isa Vector{Int} && plain.prodstoich isa Vector{Int}
+end
+
+@testset "coefficient type and display" begin
+    @test p"2N2 + O2 --> 2N2O" isa ReactionFormula{Int}
+    r = p"2H2 + O2 --> 2H2O + 0.5O2"
+    @test r isa ReactionFormula{Float64}
+    @test Dict(string.(r.subs) .=> r.substoich) == Dict("H2" => 2.0, "O2" => 1.0)
+    @test Dict(string.(r.prods) .=> r.prodstoich) == Dict("H2O" => 2.0, "O2" => 0.5)
+    # integral coefficients of a promoted formula print as integers
+    @test string(r) == "O2+2H2-->0.5O2+2H2O"
+    @test ReactionFormula(string(r)) == r
+    # a side needs one coefficient per species
+    @test_throws ArgumentError ReactionFormula([Species("N2")], [Species("N2")], [1, 1], [1], false)
 end
 
 @testset "equality and hashing" begin
@@ -259,4 +274,32 @@ end
     @test occursin("no reaction arrow", sprint(showerror, err))
     # SubString input
     @test parse_reaction(SubString("e + N2 --> 2e + N2[+]")) == p"e + N2 --> 2e + N2[+]"
+end
+
+# A Number that cannot be multiplied (no promotion to Float64), so scale_rate
+# throws inside a batch.
+struct BadRate <: Number end
+
+@testset "batch expansion is typed and errors propagate" begin
+    tree = SpeciesTree(["e", "N2", "N2[+]"])
+    rs = [p"e + N2 --> 2e + N2[+]", p"e + N2[+] --> N2"]
+    out = apply_tree(tree, rs)
+    @test out isa Vector{Tuple{Float64,ReactionFormula}}
+    @test length(out) == 2
+    @test apply_tree(tree, rs...) == out
+
+    prs = PlasmaReaction.([1.0, 2.0], rs)
+    pout = apply_tree(tree, prs)
+    @test pout isa Vector{PlasmaReaction}
+    @test [p.rate for p in pout] == [1.0, 2.0]
+
+    # An error in one reaction aborts the batch; before, it was logged and
+    # the reaction silently dropped.
+    bad = PlasmaReaction(BadRate(), rs[2])
+    @test_throws ErrorException apply_tree(tree, [prs[1], bad])
+    @test_throws ErrorException apply_tree(tree, prs[1], bad)
+    # the error is logged with the offending reaction before it propagates
+    @test_logs (:error, "Error while expanding reaction") match_mode = :any begin
+        try apply_tree(tree, [prs[1], bad]) catch end
+    end
 end

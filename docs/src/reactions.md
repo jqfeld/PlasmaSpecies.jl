@@ -31,12 +31,14 @@ parse_reaction("N2[X,vib=1] <-- N2[X,vib=0]")   # normalised to forward
 ```
 
 Coefficients may be fractional, which is common for wall and surface
-reactions. A decimal anywhere on a side promotes that side's coefficients to
-`Float64`; otherwise they stay `Int`:
+reactions. A formula has one coefficient type for both sides: a decimal
+anywhere makes it a `ReactionFormula{Float64}`, otherwise it is a
+`ReactionFormula{Int}`:
 
 ```@repl reactions
 f = parse_reaction("O[X] + 0.5O2[X] --> O3")
-f.substoich
+f.substoich, f.prodstoich
+typeof(f)
 ```
 
 Both sides are normalised on construction: repeated species are combined and
@@ -76,7 +78,9 @@ pr = PlasmaReaction(1.5e-16, p"e + N2[X,vib=0-1] --> e + N2[X,vib=2]")
 
 A species that matches nothing in the tree would silently expand the reaction
 away, so instead the reaction is dropped with a warning. Passing several
-reactions concatenates the results and skips any that throw.
+reactions concatenates the results into one typed vector. Any other error
+aborts the whole batch: it is logged together with the reaction that caused it
+and rethrown, so a chemistry is never built with a reaction quietly missing.
 
 Expansion can produce identities (`A --> A`) when a lumped reaction collapses
 onto one state. [`isreactive`](@ref) filters them out.
@@ -112,7 +116,15 @@ thermal_source_term(pr)(1e20)
 exothermic reaction, and `nothing` if any energy is unset.
 [`thermal_source_term`](@ref) builds the gas-heating term
 `rate * ∏ nᵢ^stoichᵢ * (-ΔE)` as a function of the substrate densities, in the
-order of `pr.formula.subs`.
+order of `pr.formula.subs`. A callable rate is evaluated on every call from the
+`rate_args` keyword, so the function is built once and follows a changing
+electron temperature:
+
+```@repl reactions
+prT = PlasmaReaction(Te -> 1e-15 * sqrt(Te), pr.formula)
+g = thermal_source_term(prT)
+g(1e20; rate_args=(2.0,))
+```
 
 Two consistency checks are available, though not exported:
 `PlasmaSpecies.ismassbalanced` and `PlasmaSpecies.ischargebalanced`.

@@ -34,18 +34,17 @@ function PlasmaSpecies.to_catalyst(t::SpeciesTree, rate_reaction::Tuple{Any,Reac
     ]
 end
 
+# Batches: one typed vector, and an error in any reaction aborts the batch
+# (logged with the reaction, then rethrown) rather than being skipped.
 function PlasmaSpecies.to_catalyst(t::SpeciesTree, rate_reactions::Tuple{Any,ReactionFormula}...)
-    out = []
+    out = Reaction[]
     for rate_reaction in rate_reactions
-        try
-            append!(out, PlasmaSpecies.to_catalyst(t, rate_reaction))
-        catch error
-            @warn "Skipping reaction because an error occured while making " rate_reaction error
-        end
+        append!(out, PlasmaSpecies._expanding(() -> PlasmaSpecies.to_catalyst(t, rate_reaction), rate_reaction))
     end
     return out
 end
-PlasmaSpecies.to_catalyst(t::SpeciesTree, rate_reactions::Vector{<:Tuple{Any,ReactionFormula}}) = PlasmaSpecies.to_catalyst(t, rate_reactions...)
+PlasmaSpecies.to_catalyst(t::SpeciesTree, rate_reactions::AbstractVector{<:Tuple{Any,ReactionFormula}}) =
+    PlasmaSpecies.to_catalyst(t, rate_reactions...)
 
 function PlasmaSpecies.to_catalyst(t::SpeciesTree, pr::PlasmaReaction)
     [
@@ -60,16 +59,13 @@ function PlasmaSpecies.to_catalyst(t::SpeciesTree, pr::PlasmaReaction)
 end
 
 function PlasmaSpecies.to_catalyst(t::SpeciesTree, prs::PlasmaReaction...)
-    out = []
+    out = Reaction[]
     for pr in prs
-        try
-            append!(out, PlasmaSpecies.to_catalyst(t, pr))
-        catch error
-            @warn "Skipping reaction because an error occured while making " pr error
-        end
+        append!(out, PlasmaSpecies._expanding(() -> PlasmaSpecies.to_catalyst(t, pr), pr))
     end
     return out
 end
-PlasmaSpecies.to_catalyst(t::SpeciesTree, prs::Vector{<:PlasmaReaction}) = PlasmaSpecies.to_catalyst(t, prs...)
+PlasmaSpecies.to_catalyst(t::SpeciesTree, prs::AbstractVector{<:PlasmaReaction}) =
+    PlasmaSpecies.to_catalyst(t, prs...)
 
 end
