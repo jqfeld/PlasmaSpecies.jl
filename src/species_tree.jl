@@ -148,8 +148,9 @@ Base.setindex!(t::SpeciesTree, tn::SpeciesTree, s::String) = setindex!(t, tn, Sp
 Every leaf species of `t`, in tree order. These are the most resolved states in
 the hierarchy — the ones a model carries as unknowns.
 """
-# A childless root is a leaf to AbstractTrees, but holds no species.
-leaves(t::SpeciesTree) = Species[nodevalue(l) for l in Leaves(t) if !isnothing(nodevalue(l))]
+leaves(t::SpeciesTree) =
+    # a childless root is a leaf to AbstractTrees, but holds no species
+    Species[nodevalue(l) for l in Leaves(t) if !isnothing(nodevalue(l))]
 
 """
     matching_leaves(t::SpeciesTree, formula::Species) -> Vector{Species}
