@@ -26,7 +26,7 @@ Full documentation: <https://jqfeld.github.io/PlasmaSpecies.jl/stable/>
 ## Installation
 
 ```julia
-julia> import Pkg; Pkg.add(url="https://github.com/jqfeld/PlasmaSpecies.jl.git")
+julia> import Pkg; Pkg.add("PlasmaSpecies")
 ```
 
 ## Quick start
