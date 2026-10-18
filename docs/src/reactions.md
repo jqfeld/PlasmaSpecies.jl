@@ -107,23 +107,28 @@ and a reaction's energy balance follows:
 tv = SpeciesTree(["N2[X,vib=0]", "N2[X,vib=1]"]);
 apply_energy!(tv, q -> 0.29 * q.vib);
 lv = leaves(tv)
-pr = PlasmaReaction(2.0, ReactionFormula([lv[1]], [lv[2]], [1], [1], false))
+pr = PlasmaReaction(2.0, ReactionFormula([lv[2], lv[1]], [lv[1]], [1, 1], [2], false))   # VT relaxation
 reaction_energy(pr)
-thermal_source_term(pr)(1e20)
+energy_partition(pr)
+thermal_source_term(pr)(1e20, 1e22)
 ```
 
 [`reaction_energy`](@ref) is `Σ E(products) - Σ E(substrates)`, negative for an
-exothermic reaction, and `nothing` if any energy is unset.
-[`thermal_source_term`](@ref) builds the gas-heating term
-`rate * ∏ nᵢ^stoichᵢ * (-ΔE)` as a function of the substrate densities, in the
-order of `pr.formula.subs`. A callable rate is evaluated on every call from the
-`rate_args` keyword, so the function is built once and follows a changing
-electron temperature:
+exothermic reaction, and `nothing` if any energy is unset (an electron's is 0).
+[`energy_partition`](@ref) says who takes the released energy: the electrons when
+one is a product, radiation when a single heavy product is left, else the gas — or
+the reaction's own `partition` shares (`PlasmaReaction(rate, formula; partition = (radiation = 1,))`
+for an excimer's decay), which [`apply_tree`](@ref) passes on. A consumed electron's
+kinetic energy (`consumed`) joins it. [`energy_source_terms`](@ref) builds the power of
+each channel as a function of the substrate densities, in the order of
+`pr.formula.subs`, and [`thermal_source_term`](@ref) the gas's. A callable rate is
+evaluated on every call from the `rate_args` keyword, so the function is built
+once and follows a changing electron temperature:
 
 ```@repl reactions
 prT = PlasmaReaction(Te -> 1e-15 * sqrt(Te), pr.formula)
 g = thermal_source_term(prT)
-g(1e20; rate_args=(2.0,))
+g(1e20, 1e22; rate_args=(2.0,))
 ```
 
 Two consistency checks are available, though not exported:
@@ -172,6 +177,8 @@ apply_tree
 scale_rate
 isreactive
 reaction_energy
+energy_partition
+energy_source_terms
 thermal_source_term
 to_catalyst
 ```

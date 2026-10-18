@@ -29,7 +29,7 @@ include("reactions.jl")
 export ReactionFormula, PlasmaReaction
 export parse_reaction, @p_str
 export apply_tree
-export reaction_energy, thermal_source_term, isreactive, scale_rate
+export reaction_energy, thermal_source_term, energy_source_terms, energy_partition, isreactive, scale_rate
 
 
 """

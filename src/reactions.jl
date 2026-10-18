@@ -331,9 +331,13 @@ isreactive(r::ReactionFormula) = !(r.subs == r.prods && r.substoich == r.prodsto
 
 
 """
-    PlasmaReaction(rate, formula)
+    PlasmaReaction(rate, formula; partition = nothing)
 
-A [`ReactionFormula`](@ref) with a rate attached.
+A [`ReactionFormula`](@ref) with a rate attached, and optionally how its released energy is shared:
+`partition = (; electrons, gas, radiation)`, shares summing to 1, for what the formula does not show (an excimer's
+decay `He2[*] --> 2He[X]` radiates: `(radiation = 1,)`; omitted shares are 0). `nothing`: the rule of
+[`energy_partition`](@ref). Shares, not energies: [`apply_tree`](@ref) splits a reaction into states of other
+energies and passes the shares on.
 
 `rate` is deliberately untyped: a number is a constant rate coefficient,
 anything callable is evaluated by the consumer (a temperature- or
@@ -345,9 +349,27 @@ to identity: a `rate` is often a closure, and closures compare by identity, so
 equality of a whole reaction is not well-defined. Compare the `formula` fields
 instead -- [`ReactionFormula`](@ref) has proper `==`/`hash`.
 """
-struct PlasmaReaction{R,F<:ReactionFormula}
+struct PlasmaReaction{R,F<:ReactionFormula,P}
     rate::R
     formula::F
+    partition::P
+end
+PlasmaReaction(rate, formula::ReactionFormula; partition = nothing) = PlasmaReaction(rate, formula, energy_shares(partition))
+
+"""
+    energy_shares(p) -> NamedTuple or nothing
+
+A [`PlasmaReaction`](@ref)'s `partition` checked: `nothing`, or `(; electrons, gas, radiation)` (omitted ones 0), each
+in [0, 1], summing to 1.
+"""
+energy_shares(::Nothing) = nothing
+function energy_shares(p)
+  keys(p) ⊆ (:electrons, :gas, :radiation) ||
+    throw(ArgumentError("partition: the shares are `electrons`, `gas`, `radiation`; got $(join(keys(p), ", "))"))
+  sh = (electrons = Float64(get(p, :electrons, 0.0)), gas = Float64(get(p, :gas, 0.0)), radiation = Float64(get(p, :radiation, 0.0)))
+  all(x -> 0 <= x <= 1, values(sh)) && isapprox(sum(values(sh)), 1; atol = 1e-12) ||
+    throw(ArgumentError("partition: shares in [0, 1] summing to 1, got $sh"))
+  return sh
 end
 
 isreactive(r::PlasmaReaction) = isreactive(r.formula)
@@ -363,7 +385,7 @@ scale_rate(rate::Number, factor) = rate * factor
 scale_rate(rate, factor) = (args...) -> rate(args...) * factor
 
 function apply_tree(t::SpeciesTree, pr::PlasmaReaction)
-  [PlasmaReaction(scale_rate(pr.rate, branching_factor), formula) for (branching_factor, formula) in apply_tree(t, pr.formula)]
+  [PlasmaReaction(scale_rate(pr.rate, branching_factor), formula, pr.partition) for (branching_factor, formula) in apply_tree(t, pr.formula)]
 end
 
 function apply_tree(t::SpeciesTree, prs::PlasmaReaction...)
@@ -376,12 +398,71 @@ end
 apply_tree(t::SpeciesTree, prs::AbstractVector{<:PlasmaReaction}) = apply_tree(t, prs...)
 
 """
+    energy_partition(pr::PlasmaReaction; consumed = 0) -> (; electrons, gas, radiation) or nothing
+
+Where the energy a reaction releases per event goes: `Q = −ΔE` ([`reaction_energy`](@ref); negative: absorbed) plus
+the kinetic energy `consumed` [the unit of the levels] of each electron it consumes (recombination, attachment: the
+levels do not hold it), split by the reaction's `partition`, else by the rule:
+
+- an electron among the products: the electrons take it (Penning, superelastic, associative and stepwise ionisation;
+  a threshold they pay);
+- else one heavy product: radiation (a single body cannot take the excess as motion; two-body radiative
+  recombination, radiative association);
+- else the gas (two or more heavy products share it as motion: VT relaxation, quenching, charge transfer, ion
+  conversion, dissociative recombination and attachment, three-body recombination on a heavy third body).
+
+`nothing` when a species' level is unknown.
+"""
+function energy_partition(pr::PlasmaReaction; consumed = 0)
+  ΔE = reaction_energy(pr)
+  isnothing(ΔE) && return nothing
+  total = -ΔE + consumed_electrons(pr.formula) * consumed
+  sh = isnothing(pr.partition) ? rule_shares(pr.formula) : pr.partition
+  return (electrons = sh.electrons * total, gas = sh.gas * total, radiation = sh.radiation * total)
+end
+_is_electron(sp) = gas(sp) isa Electron
+"The electrons a reaction consumes: those among its substrates less those among its products (0 if it makes them)."
+consumed_electrons(f::ReactionFormula) =
+  max(0, sum((st for (sp, st) in zip(f.subs, f.substoich) if _is_electron(sp)); init = 0) -
+         sum((st for (sp, st) in zip(f.prods, f.prodstoich) if _is_electron(sp)); init = 0))
+"The rule's shares of [`energy_partition`](@ref)."
+function rule_shares(f::ReactionFormula)
+  any(_is_electron, f.prods) && return (electrons = 1.0, gas = 0.0, radiation = 0.0)
+  heavy = sum((st for (sp, st) in zip(f.prods, f.prodstoich) if !_is_electron(sp)); init = 0)
+  heavy == 1 && return (electrons = 0.0, gas = 0.0, radiation = 1.0)
+  return (electrons = 0.0, gas = 1.0, radiation = 0.0)
+end
+
+"""
+    energy_source_terms(pr::PlasmaReaction) -> Function
+
+Build `(n₁, n₂, ...; rate_args=(), consumed=0) -> (; electrons, gas, radiation)`, the power the reaction gives each
+channel at the given substrate densities: `rate * ∏ nᵢ^stoichᵢ` times the shares of [`energy_partition`](@ref)
+(`consumed`: a consumed electron's kinetic energy, the local mean energy of a fluid). Positional arguments are the
+substrate densities in the order of `pr.formula.subs`; the function throws `ArgumentError` if their number differs.
+A numeric `rate` is used as is and `rate_args` is ignored; a callable `rate` is evaluated as `rate(rate_args...)`.
+Errors unless every species in the reaction has an `energy` (an electron's is 0).
+"""
+function energy_source_terms(pr::PlasmaReaction)
+  isnothing(reaction_energy(pr)) && error("Cannot compute the energy source terms: one or more species have unknown energy.")
+  stoichs = pr.formula.substoich
+  rate = pr.rate
+  return function (ns...; rate_args=(), consumed=0)
+    length(ns) == length(stoichs) || throw(ArgumentError(
+      "expected $(length(stoichs)) substrate densities for $(pr.formula), got $(length(ns))"))
+    r = _evaluate_rate(rate, rate_args) * prod(n^st for (n, st) in zip(ns, stoichs))
+    q = energy_partition(pr; consumed)
+    return (electrons = r * q.electrons, gas = r * q.gas, radiation = r * q.radiation)
+  end
+end
+
+"""
     thermal_source_term(pr::PlasmaReaction) -> Function
 
-Build `(n₁, n₂, ...; rate_args=()) -> rate * ∏ nᵢ^stoichᵢ * (-ΔE)`, the power
-released into the gas by `pr` at the given substrate densities. Positional
-arguments are the substrate densities in the order of `pr.formula.subs`; the
-function throws `ArgumentError` if their number differs.
+Build `(n₁, n₂, ...; rate_args=(), consumed=0) -> power`, the power released into the gas by `pr` at the given
+substrate densities: the `gas` channel of [`energy_source_terms`](@ref), `rate * ∏ nᵢ^stoichᵢ` times the gas's share
+of the released energy ([`energy_partition`](@ref)). Positional arguments are the substrate densities in the order of
+`pr.formula.subs`; the function throws `ArgumentError` if their number differs.
 
 A numeric `rate` is used as is and `rate_args` is ignored. A callable `rate` is
 evaluated as `rate(rate_args...)` on every call, so the closure is built once
@@ -396,19 +477,13 @@ Rates wrapped by [`apply_tree`](@ref) (see [`scale_rate`](@ref)) take the same
 `rate_args` as the original.
 
 Sign convention: an exothermic reaction (`ΔE < 0`, see
-[`reaction_energy`](@ref)) gives a positive source. Errors unless every species
-in the reaction has an `energy`; set them with [`apply_energy!`](@ref).
+[`reaction_energy`](@ref)) gives a positive source where the gas takes it. Errors unless every species
+in the reaction has an `energy` (an electron's is 0); set them with [`apply_energy!`](@ref).
 """
 function thermal_source_term(pr::PlasmaReaction)
-  ΔE = reaction_energy(pr)
-  isnothing(ΔE) && error("Cannot compute thermal source term: one or more species have unknown energy.")
-  stoichs = pr.formula.substoich
-  rate = pr.rate
-  return function (ns...; rate_args=())
-    length(ns) == length(stoichs) || throw(ArgumentError(
-      "expected $(length(stoichs)) substrate densities for $(pr.formula), got $(length(ns))"))
-    _evaluate_rate(rate, rate_args) * prod(n^st for (n, st) in zip(ns, stoichs)) * (-ΔE)
-  end
+  isnothing(reaction_energy(pr)) && error("Cannot compute thermal source term: one or more species have unknown energy.")
+  f = energy_source_terms(pr)
+  return (ns...; rate_args=(), consumed=0) -> f(ns...; rate_args, consumed).gas
 end
 
 _evaluate_rate(rate::Number, _) = rate
@@ -418,18 +493,20 @@ _evaluate_rate(rate, args) = rate(args...)
     reaction_energy(r::PlasmaReaction) -> Union{Number,Nothing}
 
 Energy balance `Σ E(products) - Σ E(substrates)`, weighted by stoichiometry.
-Negative for an exothermic reaction. Returns `nothing` if any species has no
-`energy` set, which is the expected state for a chemistry that has not had
-[`apply_energy!`](@ref) applied.
+Negative for an exothermic reaction. An electron's level is 0 unless set (it has no internal level; its kinetic
+energy is the consumer's: [`energy_partition`](@ref)'s `consumed`). Returns `nothing` if any other species has no
+`energy` set, which is the expected state for a chemistry that has not had [`apply_energy!`](@ref) applied.
 
 The unit is whatever [`energy`](@ref) carries.
 """
 function reaction_energy(r::PlasmaReaction)
   f = r.formula
-  any(isnothing ∘ energy, f.subs) && return nothing
-  any(isnothing ∘ energy, f.prods) && return nothing
-  sum(energy(sp) * st for (sp, st) in zip(f.prods, f.prodstoich)) -
-  sum(energy(sp) * st for (sp, st) in zip(f.subs, f.substoich))
+  any(isnothing ∘ level, f.subs) && return nothing
+  any(isnothing ∘ level, f.prods) && return nothing
+  sum(level(sp) * st for (sp, st) in zip(f.prods, f.prodstoich)) -
+  sum(level(sp) * st for (sp, st) in zip(f.subs, f.substoich))
 end
+"A species' level for an energy balance: its `energy`, an electron's 0 when unset."
+level(sp) = (E = energy(sp); isnothing(E) && _is_electron(sp) ? 0 : E)
 
 

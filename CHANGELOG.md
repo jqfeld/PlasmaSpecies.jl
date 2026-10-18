@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.4.0
+
+### Breaking
+
+- **`thermal_source_term` gives the gas its share** of a reaction's released energy, not all of `−ΔE`: an electron
+  among the products takes it (Penning, superelastic), a single heavy product radiates it. Its function takes
+  `consumed`, a consumed electron's kinetic energy. No change for reactions with two or more heavy products and no
+  electron product (VT relaxation, quenching).
+- `PlasmaReaction{R,F,P}` has a third field, `partition`: `nothing` (the rule) or the shares `(; electrons, gas,
+  radiation)` summing to 1 (`PlasmaReaction(rate, formula; partition = …)`; the two-argument form is unchanged).
+  `apply_tree` passes it on.
+
+### Added
+
+- `energy_partition(pr; consumed)`: where a reaction's released energy goes, `(; electrons, gas, radiation)`, by its
+  `partition` or the rule above. `energy_source_terms(pr)`: the power of each channel at given substrate densities.
+- An electron's level is 0 in `reaction_energy` when unset (it has no internal level).
+
 ## 0.3.0
 
 ### Breaking
